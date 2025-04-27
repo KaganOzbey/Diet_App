@@ -1,2 +1,2 @@
 # Diet_App
-Flutter ile geliştirilmiştir(Hala geliştirme aşamasındadır.)
+It is developed with Flutter (Still in development).
