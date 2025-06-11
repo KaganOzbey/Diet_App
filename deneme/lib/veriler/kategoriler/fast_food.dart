@@ -1,0 +1,32 @@
+// Fast Food Veritabanı
+class FastFoodVeritabani {
+  static const Map<String, Map<String, dynamic>> fastFood = {
+    'big mac': {'k': 540, 'p': 25, 'c': 45, 'y': 28, 'l': 3, 'o': 'adet', 'g': 230},
+    'whopper': {'k': 657, 'p': 28, 'c': 49, 'y': 40, 'l': 2, 'o': 'adet', 'g': 290},
+    'chicken burger': {'k': 515, 'p': 22, 'c': 42, 'y': 29, 'l': 2, 'o': 'adet', 'g': 219},
+    'fish burger': {'k': 390, 'p': 15, 'c': 38, 'y': 19, 'l': 2, 'o': 'adet', 'g': 143},
+    'pizza margherita': {'k': 266, 'p': 11, 'c': 33, 'y': 10, 'l': 2, 'o': 'dilim', 'g': 107},
+    'pizza pepperoni': {'k': 298, 'p': 13, 'c': 36, 'y': 13, 'l': 2, 'o': 'dilim', 'g': 108},
+    'pizza karışık': {'k': 285, 'p': 12, 'c': 36, 'y': 11, 'l': 2, 'o': 'dilim', 'g': 107},
+    'hot dog': {'k': 290, 'p': 11, 'c': 31, 'y': 15, 'l': 1, 'o': 'adet', 'g': 98},
+    'chicken wings': {'k': 203, 'p': 30, 'c': 0, 'y': 8.1, 'l': 0, 'o': 'adet', 'g': 50},
+    'patates kızartması': {'k': 365, 'p': 4, 'c': 63, 'y': 17, 'l': 4, 'o': 'porsiyon', 'g': 117},
+    'onion rings': {'k': 411, 'p': 6, 'c': 38, 'y': 26, 'l': 2.2, 'o': 'porsiyon', 'g': 78},
+    'nuggets': {'k': 296, 'p': 15, 'c': 18, 'y': 19, 'l': 1, 'o': 'adet', 'g': 20},
+    'döner dürüm': {'k': 500, 'p': 25, 'c': 45, 'y': 25, 'l': 3, 'o': 'adet', 'g': 300},
+    'tavuk dürüm': {'k': 400, 'p': 30, 'c': 35, 'y': 15, 'l': 2, 'o': 'adet', 'g': 250},
+    'lahmacun': {'k': 270, 'p': 12, 'c': 35, 'y': 8, 'l': 2, 'o': 'adet', 'g': 150},
+    'pide': {'k': 320, 'p': 15, 'c': 40, 'y': 12, 'l': 2, 'o': 'dilim', 'g': 120},
+    'taco': {'k': 226, 'p': 9, 'c': 18, 'y': 13, 'l': 3, 'o': 'adet', 'g': 102},
+    'burrito': {'k': 540, 'p': 21, 'c': 71, 'y': 16, 'l': 8, 'o': 'adet', 'g': 326},
+    'subway sandwich': {'k': 360, 'p': 24, 'c': 47, 'y': 6, 'l': 5, 'o': 'adet', 'g': 230},
+    'fish and chips': {'k': 585, 'p': 32, 'c': 45, 'y': 29, 'l': 4, 'o': 'porsiyon', 'g': 250},
+    'fried chicken': {'k': 272, 'p': 31, 'c': 8, 'y': 15, 'l': 0, 'o': 'parça', 'g': 85},
+    'popcorn chicken': {'k': 420, 'p': 18, 'c': 24, 'y': 28, 'l': 1, 'o': 'porsiyon', 'g': 113},
+    'mozzarella sticks': {'k': 691, 'p': 35, 'c': 55, 'y': 35, 'l': 2, 'o': 'porsiyon', 'g': 192},
+    'garlic bread': {'k': 350, 'p': 9, 'c': 43, 'y': 16, 'l': 2, 'o': 'dilim', 'g': 85},
+    'cheesy fries': {'k': 470, 'p': 13, 'c': 52, 'y': 24, 'l': 4, 'o': 'porsiyon', 'g': 150},
+    'milkshake': {'k': 530, 'p': 12, 'c': 74, 'y': 20, 'l': 0, 'o': 'bardak', 'g': 473},
+    'coca cola': {'k': 140, 'p': 0, 'c': 39, 'y': 0, 'l': 0, 'o': 'kutu', 'g': 330},
+  };
+} 

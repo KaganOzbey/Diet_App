@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../servisler/besin_servisi.dart';
+import '../hizmetler/besin_servisi.dart';
 
 class YemekGirisEkrani extends StatefulWidget {
   final Function(String, String, double) onAdd;
