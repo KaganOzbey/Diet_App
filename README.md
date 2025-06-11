@@ -1,2 +1,2 @@
 # Diet_App
-It is developed with Flutter (Still in development).
+It is developed with Flutter.
