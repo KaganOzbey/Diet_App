@@ -24,18 +24,19 @@ class GunlukBeslenmeModeliAdapter extends TypeAdapter<GunlukBeslenmeModeli> {
       toplamProtein: fields[4] as double,
       toplamKarbonhidrat: fields[5] as double,
       toplamYag: fields[6] as double,
-      kaloriHedefi: fields[7] as double,
-      ogunSayisi: fields[8] as int,
-      ogunGirisiIdleri: (fields[9] as List?)?.cast<String>(),
-      olusturulmaTarihi: fields[10] as DateTime,
-      guncellemeTarihi: fields[11] as DateTime,
+      toplamLif: fields[7] as double,
+      kaloriHedefi: fields[8] as double,
+      ogunSayisi: fields[9] as int,
+      ogunGirisiIdleri: (fields[10] as List?)?.cast<String>(),
+      olusturulmaTarihi: fields[11] as DateTime,
+      guncellemeTarihi: fields[12] as DateTime,
     );
   }
 
   @override
   void write(BinaryWriter writer, GunlukBeslenmeModeli obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -51,14 +52,16 @@ class GunlukBeslenmeModeliAdapter extends TypeAdapter<GunlukBeslenmeModeli> {
       ..writeByte(6)
       ..write(obj.toplamYag)
       ..writeByte(7)
-      ..write(obj.kaloriHedefi)
+      ..write(obj.toplamLif)
       ..writeByte(8)
-      ..write(obj.ogunSayisi)
+      ..write(obj.kaloriHedefi)
       ..writeByte(9)
-      ..write(obj.ogunGirisiIdleri)
+      ..write(obj.ogunSayisi)
       ..writeByte(10)
-      ..write(obj.olusturulmaTarihi)
+      ..write(obj.ogunGirisiIdleri)
       ..writeByte(11)
+      ..write(obj.olusturulmaTarihi)
+      ..writeByte(12)
       ..write(obj.guncellemeTarihi);
   }
 

@@ -26,16 +26,17 @@ class OgunGirisiModeliAdapter extends TypeAdapter<OgunGirisiModeli> {
       protein: fields[6] as double,
       karbonhidrat: fields[7] as double,
       yag: fields[8] as double,
-      ogunTipi: fields[9] as String,
-      tuketimTarihi: fields[10] as DateTime,
-      kayitTarihi: fields[11] as DateTime,
+      lif: fields[9] as double,
+      ogunTipi: fields[10] as String,
+      tuketimTarihi: fields[11] as DateTime,
+      kayitTarihi: fields[12] as DateTime,
     );
   }
 
   @override
   void write(BinaryWriter writer, OgunGirisiModeli obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -55,10 +56,12 @@ class OgunGirisiModeliAdapter extends TypeAdapter<OgunGirisiModeli> {
       ..writeByte(8)
       ..write(obj.yag)
       ..writeByte(9)
-      ..write(obj.ogunTipi)
+      ..write(obj.lif)
       ..writeByte(10)
-      ..write(obj.tuketimTarihi)
+      ..write(obj.ogunTipi)
       ..writeByte(11)
+      ..write(obj.tuketimTarihi)
+      ..writeByte(12)
       ..write(obj.kayitTarihi);
   }
 

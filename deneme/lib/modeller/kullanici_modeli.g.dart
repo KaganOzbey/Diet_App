@@ -27,6 +27,7 @@ class KullaniciModeliAdapter extends TypeAdapter<KullaniciModeli> {
       olusturulmaTarihi: fields[10] as DateTime?,
       guncellemeTarihi: fields[11] as DateTime?,
       emailDogrulandiMi: fields[12] as bool,
+      hedef: fields[13] as String,
     )
       ..id = fields[0] as String
       ..bmr = fields[7] as double
@@ -36,7 +37,7 @@ class KullaniciModeliAdapter extends TypeAdapter<KullaniciModeli> {
   @override
   void write(BinaryWriter writer, KullaniciModeli obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -62,7 +63,9 @@ class KullaniciModeliAdapter extends TypeAdapter<KullaniciModeli> {
       ..writeByte(11)
       ..write(obj.guncellemeTarihi)
       ..writeByte(12)
-      ..write(obj.emailDogrulandiMi);
+      ..write(obj.emailDogrulandiMi)
+      ..writeByte(13)
+      ..write(obj.hedef);
   }
 
   @override

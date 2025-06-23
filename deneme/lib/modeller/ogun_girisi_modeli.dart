@@ -33,12 +33,15 @@ class OgunGirisiModeli extends HiveObject {
   double yag;
 
   @HiveField(9)
-  String ogunTipi; // Kahvaltı, Ara Öğün, Öğle Yemeği, Akşam Yemeği
+  double lif;
 
   @HiveField(10)
-  DateTime tuketimTarihi;
+  String ogunTipi; // Kahvaltı, Ara Öğün, Öğle Yemeği, Akşam Yemeği
 
   @HiveField(11)
+  DateTime tuketimTarihi;
+
+  @HiveField(12)
   DateTime kayitTarihi;
 
   OgunGirisiModeli({
@@ -51,6 +54,7 @@ class OgunGirisiModeli extends HiveObject {
     required this.protein,
     required this.karbonhidrat,
     required this.yag,
+    required this.lif,
     required this.ogunTipi,
     required this.tuketimTarihi,
     required this.kayitTarihi,
@@ -77,6 +81,7 @@ class OgunGirisiModeli extends HiveObject {
       protein: besinDegerleri['protein']!,
       karbonhidrat: besinDegerleri['karbonhidrat']!,
       yag: besinDegerleri['yag']!,
+      lif: besinDegerleri['lif'] ?? 0.0,
       ogunTipi: ogunTipi,
       tuketimTarihi: tuketimTarihi ?? simdi,
       kayitTarihi: simdi,
@@ -99,6 +104,7 @@ class OgunGirisiModeli extends HiveObject {
       'protein': protein,
       'karbonhidrat': karbonhidrat,
       'yag': yag,
+      'lif': lif,
       'ogunTipi': ogunTipi,
       'tuketimTarihi': tuketimTarihi.toIso8601String(),
       'kayitTarihi': kayitTarihi.toIso8601String(),
@@ -116,6 +122,7 @@ class OgunGirisiModeli extends HiveObject {
       protein: json['protein'].toDouble(),
       karbonhidrat: json['karbonhidrat'].toDouble(),
       yag: json['yag'].toDouble(),
+      lif: json['lif']?.toDouble() ?? 0.0,
       ogunTipi: json['ogunTipi'],
       tuketimTarihi: DateTime.parse(json['tuketimTarihi']),
       kayitTarihi: DateTime.parse(json['kayitTarihi']),

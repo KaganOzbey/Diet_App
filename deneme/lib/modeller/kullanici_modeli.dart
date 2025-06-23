@@ -43,6 +43,9 @@ class KullaniciModeli extends HiveObject {
   @HiveField(12)
   bool emailDogrulandiMi;
 
+  @HiveField(13)
+  String hedef; // Kilo hedefi: 'Kilo Vermek', 'Kilo Almak', 'Kiloyu Korumak'
+
   KullaniciModeli({
     String? uid, // Firebase UID için (opsiyonel)
     required this.email,
@@ -55,12 +58,13 @@ class KullaniciModeli extends HiveObject {
     DateTime? olusturulmaTarihi,
     DateTime? guncellemeTarihi,
     this.emailDogrulandiMi = false,
+    this.hedef = 'Kiloyu Korumak',
   }) : 
     id = uid ?? DateTime.now().millisecondsSinceEpoch.toString(),
     olusturulmaTarihi = olusturulmaTarihi ?? DateTime.now(),
     guncellemeTarihi = guncellemeTarihi ?? DateTime.now(),
     bmr = 0.0,
-    gunlukKaloriHedefi = 0.0 {
+    gunlukKaloriHedefi = 2000.0 {
     // BMR ve kalori hedefini hesapla
     this.bmr = bmrHesapla();
     this.gunlukKaloriHedefi = gunlukKaloriIhtiyaci();
@@ -137,6 +141,7 @@ class KullaniciModeli extends HiveObject {
       'olusturulmaTarihi': olusturulmaTarihi.toIso8601String(),
       'guncellemeTarihi': guncellemeTarihi.toIso8601String(),
       'emailDogrulandiMi': emailDogrulandiMi,
+      'hedef': hedef,
     };
   }
 
@@ -153,7 +158,39 @@ class KullaniciModeli extends HiveObject {
       olusturulmaTarihi: DateTime.parse(json['olusturulmaTarihi']),
       guncellemeTarihi: DateTime.parse(json['guncellemeTarihi']),
       emailDogrulandiMi: json['emailDogrulandiMi'] ?? false,
+      hedef: json['hedef'] ?? 'Kiloyu Korumak',
     )..bmr = json['bmr']?.toDouble() ?? 0.0
-     ..gunlukKaloriHedefi = json['gunlukKaloriHedefi']?.toDouble() ?? 0.0;
+     ..gunlukKaloriHedefi = json['gunlukKaloriHedefi']?.toDouble() ?? 2000.0;
+  }
+
+  KullaniciModeli copyWith({
+    String? id,
+    String? email,
+    String? isim,
+    double? boy,
+    double? kilo,
+    int? yas,
+    bool? erkekMi,
+    double? bmr,
+    double? gunlukKaloriHedefi,
+    int? aktiviteSeviyesi,
+    DateTime? olusturulmaTarihi,
+    DateTime? guncellemeTarihi,
+    bool? emailDogrulandiMi,
+  }) {
+    return KullaniciModeli(
+      uid: id ?? this.id,
+      email: email ?? this.email,
+      isim: isim ?? this.isim,
+      boy: boy ?? this.boy,
+      kilo: kilo ?? this.kilo,
+      yas: yas ?? this.yas,
+      erkekMi: erkekMi ?? this.erkekMi,
+      aktiviteSeviyesi: aktiviteSeviyesi ?? this.aktiviteSeviyesi,
+      olusturulmaTarihi: olusturulmaTarihi ?? this.olusturulmaTarihi,
+      guncellemeTarihi: guncellemeTarihi ?? this.guncellemeTarihi,
+      emailDogrulandiMi: emailDogrulandiMi ?? this.emailDogrulandiMi,
+    )..bmr = bmr ?? this.bmr
+     ..gunlukKaloriHedefi = gunlukKaloriHedefi ?? this.gunlukKaloriHedefi;
   }
 } 

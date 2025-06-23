@@ -27,18 +27,21 @@ class GunlukBeslenmeModeli extends HiveObject {
   double toplamYag;
 
   @HiveField(7)
-  double kaloriHedefi;
+  double toplamLif;
 
   @HiveField(8)
-  int ogunSayisi;
+  double kaloriHedefi;
 
   @HiveField(9)
-  List<String> ogunGirisiIdleri; // Öğün giriş ID'leri
+  int ogunSayisi;
 
   @HiveField(10)
-  DateTime olusturulmaTarihi;
+  List<String> ogunGirisiIdleri; // Öğün giriş ID'leri
 
   @HiveField(11)
+  DateTime olusturulmaTarihi;
+
+  @HiveField(12)
   DateTime guncellemeTarihi;
 
   GunlukBeslenmeModeli({
@@ -49,6 +52,7 @@ class GunlukBeslenmeModeli extends HiveObject {
     this.toplamProtein = 0.0,
     this.toplamKarbonhidrat = 0.0,
     this.toplamYag = 0.0,
+    this.toplamLif = 0.0,
     required this.kaloriHedefi,
     this.ogunSayisi = 0,
     List<String>? ogunGirisiIdleri,
@@ -62,6 +66,7 @@ class GunlukBeslenmeModeli extends HiveObject {
     toplamProtein = ogunGirisleri.fold(0.0, (toplam, ogun) => toplam + ogun.protein);
     toplamKarbonhidrat = ogunGirisleri.fold(0.0, (toplam, ogun) => toplam + ogun.karbonhidrat);
     toplamYag = ogunGirisleri.fold(0.0, (toplam, ogun) => toplam + ogun.yag);
+    toplamLif = ogunGirisleri.fold(0.0, (toplam, ogun) => toplam + ogun.lif);
     ogunSayisi = ogunGirisleri.length;
     ogunGirisiIdleri = ogunGirisleri.map((o) => o.id).toList();
     guncellemeTarihi = DateTime.now();
@@ -81,12 +86,22 @@ class GunlukBeslenmeModeli extends HiveObject {
   // Kalori hedefi karşılandı mı
   bool get kaloriHedefiKarsilandi => toplamKalori >= kaloriHedefi * 0.9; // %90 ve üzeri
 
-  // Beslenme kalitesi puanı (basit hesaplama)
+  // Beslenme kalitesi puanı (basit hesaplama) - SAĞLIK ODAKLI
   double get beslenmeSkoru {
     double puan = 0.0;
     
-    // Kalori hedefi puanı (0-25 puan)
-    if (toplamKalori >= kaloriHedefi * 0.8 && toplamKalori <= kaloriHedefi * 1.2) {
+    // Kalori aşımı kontrolü - ÇOK KRİTİK!
+    final kaloriAsimi = toplamKalori - kaloriHedefi;
+    if (kaloriAsimi > 500) {
+      return 5.0; // TEHLİKELİ - çok düşük puan
+    } else if (kaloriAsimi > 300) {
+      return 15.0; // ZARARI - düşük puan
+    } else if (kaloriAsimi > 100) {
+      return 25.0; // RİSKLİ - orta-düşük puan
+    }
+    
+    // Normal kalori hedefi puanı (0-25 puan)
+    if (toplamKalori >= kaloriHedefi * 0.8 && toplamKalori <= kaloriHedefi * 1.05) {
       puan += 25.0;
     } else if (toplamKalori >= kaloriHedefi * 0.6) {
       puan += 15.0;
@@ -122,8 +137,12 @@ class GunlukBeslenmeModeli extends HiveObject {
     
     if (toplamKalori < kaloriHedefi * 0.8) {
       oneriler.add("Günlük kalori hedefinin altındasınız. Sağlıklı ara öğünler ekleyebilirsiniz.");
+    } else if (toplamKalori > kaloriHedefi * 1.5) {
+      oneriler.add("🚨 TEHLİKELİ SEVYYE! ${(toplamKalori - kaloriHedefi).round()} kcal fazla. ACİL 60+ dk yoğun egzersiz!");
     } else if (toplamKalori > kaloriHedefi * 1.2) {
-      oneriler.add("Günlük kalori hedefini aştınız. Yarın daha dikkatli olun.");
+      oneriler.add("⚠️ ZARARI! ${(toplamKalori - kaloriHedefi).round()} kcal fazla. En az 45 dk kardio egzersiz şart!");
+    } else if (toplamKalori > kaloriHedefi * 0.95) {
+      oneriler.add("🟡 DİKKAT! Kalori hedefinize yaklaştınız. Daha fazla yemek yemeyin!");
     }
     
     if (proteinYuzdesi < 0.15) {
@@ -154,6 +173,7 @@ class GunlukBeslenmeModeli extends HiveObject {
       'toplamProtein': toplamProtein,
       'toplamKarbonhidrat': toplamKarbonhidrat,
       'toplamYag': toplamYag,
+      'toplamLif': toplamLif,
       'kaloriHedefi': kaloriHedefi,
       'ogunSayisi': ogunSayisi,
       'ogunGirisiIdleri': ogunGirisiIdleri,
@@ -171,6 +191,7 @@ class GunlukBeslenmeModeli extends HiveObject {
       toplamProtein: json['toplamProtein'].toDouble(),
       toplamKarbonhidrat: json['toplamKarbonhidrat'].toDouble(),
       toplamYag: json['toplamYag'].toDouble(),
+      toplamLif: json['toplamLif']?.toDouble() ?? 0.0,
       kaloriHedefi: json['kaloriHedefi'].toDouble(),
       ogunSayisi: json['ogunSayisi'],
       ogunGirisiIdleri: List<String>.from(json['ogunGirisiIdleri']),

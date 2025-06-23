@@ -7,7 +7,7 @@ import '../modeller/kullanici_modeli.dart';
 import '../widgets/yukleme_gostergesi.dart';
 import '../widgets/tema_degistirici.dart';
 import '../servisler/tema_servisi.dart';
-import 'giris_ekrani.dart';
+import 'firebase_giris_ekrani.dart';
 
 class ProfilYonetimiEkrani extends StatefulWidget {
   @override
@@ -216,7 +216,7 @@ class _ProfilYonetimiEkraniState extends State<ProfilYonetimiEkrani>
         // Başarılı silme işleminden sonra giriş ekranına yönlendir
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => GirisEkrani()),
+          MaterialPageRoute(builder: (context) => FirebaseGirisEkrani()),
           (route) => false,
         );
       }
@@ -376,7 +376,7 @@ class _ProfilYonetimiEkraniState extends State<ProfilYonetimiEkrani>
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => GirisEkrani()),
+        MaterialPageRoute(builder: (context) => FirebaseGirisEkrani()),
         (route) => false,
       );
     }

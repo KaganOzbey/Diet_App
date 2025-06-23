@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'giris_ekrani.dart';
+import 'firebase_giris_ekrani.dart';
 
 class OnboardingEkrani extends StatefulWidget {
   @override
@@ -83,7 +83,7 @@ class _OnboardingEkraniState extends State<OnboardingEkrani> with TickerProvider
   void _navigateToLogin() {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (context, animation, _) => GirisEkrani(),
+        pageBuilder: (context, animation, _) => FirebaseGirisEkrani(),
         transitionDuration: Duration(milliseconds: 500),
         transitionsBuilder: (context, animation, _, child) {
           return FadeTransition(

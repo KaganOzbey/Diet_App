@@ -236,9 +236,24 @@ class AylikAnalizServisi {
 
     toplamPuan = kategorilerPuani.values.fold<double>(0.0, (sum, puan) => sum + (puan as double));
 
+    // Kalori aşımı kontrolü - son 7 günü kontrol et
+    bool kaloriAsimVarMi = false;
+    final son7Gun = veriler.take(7);
+    for (final gunlukVeri in son7Gun) {
+      final kaloriAsimi = gunlukVeri.toplamKalori - hedefKalori;
+      if (kaloriAsimi > 100) {
+        kaloriAsimVarMi = true;
+        break;
+      }
+    }
+    
     String aciklama;
-    if (toplamPuan >= 80) {
-      aciklama = 'Mükemmel! Beslenme düzeniniz çok iyi';
+    if (kaloriAsimVarMi) {
+      // Kalori aşımı varsa asla mükemmel deme
+      aciklama = '⚠️ Kalori aşımı tespit edildi! Egzersiz artırın.';
+      toplamPuan = (toplamPuan * 0.6).clamp(0.0, 60.0); // Puan düşür ve maks 60 yap
+    } else if (toplamPuan >= 80) {
+      aciklama = 'Mükemmel! Beslenme düzeniniz ideal seviyede';
     } else if (toplamPuan >= 60) {
       aciklama = 'İyi! Bazı alanlarda iyileştirme yapabilirsiniz';
     } else if (toplamPuan >= 40) {

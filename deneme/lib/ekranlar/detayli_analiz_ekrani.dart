@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../hizmetler/veri_tabani_servisi.dart';
 import '../hizmetler/firebase_auth_servisi.dart';
 import '../hizmetler/beslenme_analiz_servisi.dart';
@@ -7,7 +6,6 @@ import '../modeller/kullanici_modeli.dart';
 import '../modeller/gunluk_beslenme_modeli.dart';
 import '../modeller/ogun_girisi_modeli.dart';
 import '../widgets/yukleme_gostergesi.dart';
-import '../servisler/tema_servisi.dart';
 
 class DetayliAnalizEkrani extends StatefulWidget {
   @override
@@ -335,17 +333,8 @@ class _DetayliAnalizEkraniState extends State<DetayliAnalizEkrani>
   Widget _buildVitaminMineralAnalizi(Map<String, dynamic> besinAnalizi) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    // Gerçek beslenme verilerine göre tahmini vitamin/mineral değerleri
-    double proteinOrani = (besinAnalizi['protein']['yuzde'] ?? 0.0).toDouble();
-    double karbonhidratOrani = (besinAnalizi['karbonhidrat']['yuzde'] ?? 0.0).toDouble();
-    double yagOrani = (besinAnalizi['yag']['yuzde'] ?? 0.0).toDouble();
-    
-    // Makro besin dengesine göre vitamin/mineral tahmini
-    double vitaminC = (proteinOrani * 0.3 + karbonhidratOrani * 0.6 + yagOrani * 0.1).clamp(0.0, 100.0);
-    double vitaminD = (proteinOrani * 0.5 + yagOrani * 0.4 + karbonhidratOrani * 0.1).clamp(0.0, 100.0);
-    double demir = (proteinOrani * 0.7 + karbonhidratOrani * 0.2 + yagOrani * 0.1).clamp(0.0, 100.0);
-    double kalsiyum = (proteinOrani * 0.6 + karbonhidratOrani * 0.3 + yagOrani * 0.1).clamp(0.0, 100.0);
-    double magnezyum = (proteinOrani * 0.4 + karbonhidratOrani * 0.4 + yagOrani * 0.2).clamp(0.0, 100.0);
+    // Günlük öğün girişlerinden gerçek besin değerlerini hesapla
+    Map<String, double> gercekVitaminler = _gercekVitaminHesapla();
     
     return Container(
       padding: EdgeInsets.all(20),
@@ -364,7 +353,7 @@ class _DetayliAnalizEkraniState extends State<DetayliAnalizEkrani>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Vitamin & Mineral Durumu (Tahmini)',
+            'Besin Değerleri Durumu',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -373,7 +362,7 @@ class _DetayliAnalizEkraniState extends State<DetayliAnalizEkrani>
           ),
           SizedBox(height: 8),
           Text(
-            'Makro besin dengenize göre tahmini değerler',
+            'Günlük tükettiğiniz besinlere göre gerçek değerler',
             style: TextStyle(
               fontSize: 12,
               color: isDark ? Color(0xFFBDBDBD) : Colors.grey[600],
@@ -381,14 +370,34 @@ class _DetayliAnalizEkraniState extends State<DetayliAnalizEkrani>
           ),
           SizedBox(height: 16),
           
-          _buildVitaminSatiri('Vitamin C', vitaminC, 100, '%', Colors.orange),
-          _buildVitaminSatiri('Vitamin D', vitaminD, 100, '%', Colors.yellow[700]!),
-          _buildVitaminSatiri('Demir', demir, 100, '%', Colors.red[700]!),
-          _buildVitaminSatiri('Kalsiyum', kalsiyum, 100, '%', Colors.blue[700]!),
-          _buildVitaminSatiri('Magnezyum', magnezyum, 100, '%', Colors.purple[700]!),
+          _buildVitaminSatiri('Protein', gercekVitaminler['protein']!, 100, 'g', Colors.red[700]!),
+          _buildVitaminSatiri('Karbonhidrat', gercekVitaminler['karbonhidrat']!, 100, 'g', Colors.blue[700]!),
+          _buildVitaminSatiri('Yağ', gercekVitaminler['yag']!, 100, 'g', Colors.orange[700]!),
+          _buildVitaminSatiri('Lif', gercekVitaminler['lif']!, 100, 'g', Colors.green[700]!),
+          _buildVitaminSatiri('Kalori', gercekVitaminler['kalori']!, kullanici?.gunlukKaloriHedefi ?? 2000, 'kcal', Colors.purple[700]!),
         ],
       ),
     );
+  }
+
+  Map<String, double> _gercekVitaminHesapla() {
+    if (bugunBeslenme == null) {
+      return {
+        'protein': 0.0,
+        'karbonhidrat': 0.0,
+        'yag': 0.0,
+        'lif': bugunBeslenme?.toplamLif ?? 0.0,
+        'kalori': 0.0,
+      };
+    }
+    
+    return {
+      'protein': bugunBeslenme!.toplamProtein,
+      'karbonhidrat': bugunBeslenme!.toplamKarbonhidrat,
+      'yag': bugunBeslenme!.toplamYag,
+      'lif': bugunBeslenme!.toplamLif,
+      'kalori': bugunBeslenme!.toplamKalori,
+    };
   }
 
   Widget _buildVitaminSatiri(String isim, double gercek, double hedef, String birim, Color renk) {
@@ -429,8 +438,6 @@ class _DetayliAnalizEkraniState extends State<DetayliAnalizEkrani>
       ),
     );
   }
-
-
 
   Widget _buildGunlukPerformans() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -682,10 +689,27 @@ class _DetayliAnalizEkraniState extends State<DetayliAnalizEkrani>
       
       puan = kaloriPuani + proteinPuani + ogunPuani + cesitlilikPuani;
       
-      if (puan >= 80) durum = 'Mükemmel! Çok dengeli besleniyorsunuz.';
-      else if (puan >= 60) durum = 'İyi! Küçük iyileştirmelerle daha da iyi olabilir.';
-      else if (puan >= 40) durum = 'Orta seviye. Beslenmenizi gözden geçirmelisiniz.';
-      else durum = 'Beslenmenizde önemli eksiklikler var.';
+      // Kalori aşımı kontrolü - SAĞLIK ODAKLI
+      final kaloriAsimi = bugunBeslenme?.toplamKalori ?? 0.0 - (kullanici?.gunlukKaloriHedefi ?? 2000.0);
+      
+             if (kaloriAsimi > 500) {
+         durum = '🚨 TEHLİKE! Çok fazla kalori aldınız. ACİL egzersiz gerekli!';
+         puan = (puan * 0.3); // %70 puan düşür
+       } else if (kaloriAsimi > 300) {
+         durum = '⚠️ ZARARI! Kalori fazlası var. Aktivite artırın!';
+         puan = (puan * 0.5); // %50 puan düşür
+       } else if (kaloriAsimi > 100) {
+         durum = '🟡 DİKKAT! Kalori hedefini aştınız. Kontrol edin!';
+         puan = (puan * 0.7); // %30 puan düşür
+      } else if (puan >= 80) {
+        durum = 'Mükemmel! Çok dengeli besleniyorsunuz.';
+      } else if (puan >= 60) {
+        durum = 'İyi! Küçük iyileştirmelerle daha da iyi olabilir.';
+      } else if (puan >= 40) {
+        durum = 'Orta seviye. Beslenmenizi gözden geçirmelisiniz.';
+      } else {
+        durum = 'Beslenmenizde önemli eksiklikler var.';
+      }
     }
     
     return Container(

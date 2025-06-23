@@ -10,18 +10,22 @@ import '../modeller/ogun_girisi_modeli.dart';
 import '../modeller/gunluk_beslenme_modeli.dart';
 import '../veriler/mega_besin_veritabani.dart';
 import '../servisler/tema_servisi.dart';
+import '../hizmetler/kilo_analiz_servisi.dart';
+import '../hizmetler/beslenme_analiz_servisi.dart';
 import 'istatistikler_ekrani.dart';
 import 'profil_yonetimi_ekrani.dart';
 import 'detayli_analiz_ekrani.dart';
 import 'oneriler_ekrani.dart';
+import 'ozel_besin_ekleme_ekrani.dart';
+import 'kilo_giris_ekrani.dart';
+import '../widgets/grafikler/kilo_takip_grafigi.dart';
 
 class ModernDashboard extends StatefulWidget {
   final double bmr;
 
   const ModernDashboard({Key? key, required this.bmr}) : super(key: key);
 
-  @override
-  _ModernDashboardState createState() => _ModernDashboardState();
+   _ModernDashboardState createState() => _ModernDashboardState();
 }
 
 class _ModernDashboardState extends State<ModernDashboard> with TickerProviderStateMixin {
@@ -44,6 +48,16 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
   int dailySteps = 0;
   final int dailyWaterGoal = 2500; // 2.5 litre hedef
   final int dailyStepsGoal = 10000; // 10k adım hedef
+  
+  // Kilo takibi değişkenleri
+  double? currentWeight;
+  double? weeklyWeightChange;
+  double? monthlyWeightChange;
+  
+  // Analiz sonuçları
+  Map<String, dynamic>? _kaloriAnalizi;
+  Map<String, dynamic>? _beslenmeSkoru;
+
 
   @override
   void initState() {
@@ -80,8 +94,10 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
 
   Future<void> _loadUserData() async {
     try {
+      print('ModernDashboard: Kullanıcı verileri yükleniyor...');
       final demoKullanici = FirebaseAuthServisi.demomMevcutKullanici;
       if (demoKullanici != null) {
+        print('ModernDashboard: Demo kullanıcı bulundu - Kilo: ${demoKullanici.kilo}');
         setState(() {
           currentUser = demoKullanici;
         });
@@ -91,28 +107,55 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
       
       final kullanici = await VeriTabaniServisi.aktifKullaniciGetir();
       if (kullanici != null) {
+        print('ModernDashboard: Veritabanından kullanıcı bulundu - Kilo: ${kullanici.kilo}');
         setState(() {
           currentUser = kullanici;
         });
         _loadTodayData();
         return;
+      } else {
+        print('ModernDashboard: HATA - Hiç kullanıcı bulunamadı');
       }
     } catch (e) {
       print('Kullanıcı veri yükleme hatası: $e');
     }
   }
 
-  void _loadTodayData() {
-    if (currentUser == null) return;
+  Future<void> _loadTodayData() async {
+    if (currentUser == null) {
+      print('ModernDashboard: _loadTodayData - currentUser null, çıkılıyor');
+      return;
+    }
+    
+    print('ModernDashboard: Günlük veriler yükleniyor... Kullanıcı kilo: ${currentUser!.kilo}');
     
     final bugun = DateTime.now();
     final ogunGirisleri = VeriTabaniServisi.gunlukOgunGirisleriniGetir(currentUser!.id, bugun);
     final gunlukBeslenme = VeriTabaniServisi.gunlukBeslenmeGetir(currentUser!.id, bugun);
     
+    // Kilo verilerini yükle
+    final kiloIstatistikleri = VeriTabaniServisi.kiloIstatistikleriniGetir(currentUser!.id);
+    print('ModernDashboard: Kilo istatistikleri: $kiloIstatistikleri');
+    
+    // Kilo analizi yap
+    final kaloriAnalizi = await KiloAnalizServisi.kaloriDengesiAnaliziYap(currentUser!.id, bugun);
+    
+    // Gerçek beslenme skoru hesapla
+    final beslenmeSkoru = await BeslenmeAnalizServisi.gunlukBeslenmeSkoruHesapla(currentUser!.id, bugun);
+    
     setState(() {
       todayMeals = ogunGirisleri;
       todayNutrition = gunlukBeslenme;
+      currentWeight = kiloIstatistikleri['mevcutKilo'];
+      weeklyWeightChange = kiloIstatistikleri['haftalikDegisim'];
+      monthlyWeightChange = kiloIstatistikleri['aylikDegisim'];
+      
+      // Analiz sonuçlarını kaydet
+      _kaloriAnalizi = kaloriAnalizi;
+      _beslenmeSkoru = beslenmeSkoru;
     });
+    
+    print('ModernDashboard: setState tamamlandı - currentWeight: $currentWeight');
   }
 
   // Su ve adım takibi fonksiyonları
@@ -163,17 +206,7 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: temaServisi.isDarkMode 
-                  ? [
-                      Color(0xFF1A1A1A),
-                      Color(0xFF2A2A2A),
-                      Color(0xFF1E1E1E),
-                    ]
-                  : [
-                      Color(0xFFF8F9FA),
-                      Color(0xFFF1F5F9),
-                      Color(0xFFE8F5E8),
-                    ],
+                colors: temaServisi.backgroundGradient,
               ),
             ),
             child: SafeArea(
@@ -214,6 +247,8 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
           SizedBox(height: 20),
           _buildDailyStatsCards(temaServisi),
           SizedBox(height: 20),
+          _buildWeightTrackingCard(temaServisi),
+          SizedBox(height: 20),
           _buildWaterAndStepsCards(temaServisi),
           SizedBox(height: 20),
           _buildMealTimesCard(temaServisi),
@@ -224,6 +259,120 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
           SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  Widget _buildQuickAddFoodCard(TemaServisi temaServisi) {
+    return GestureDetector(
+      onTap: () async {
+        final sonuc = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => OzelBesinEklemeEkrani()),
+        );
+        if (sonuc == true) {
+          // Dashboard verilerini yeniden yükle
+          await _loadUserData();
+          setState(() {}); // UI'ı güncelle
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    'Özel besin başarıyla eklendi!',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      },
+      child: Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFF5722),
+            Color(0xFFFF7043),
+            Color(0xFFFF8A65),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFFFF5722).withOpacity(0.3),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.add_circle,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Özel Besin Ekle',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Kendi yemeklerinizi uygulamaya ekleyin',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: 16,
+            ),
+          ),
+        ],
+      ),
+    ),
     );
   }
 
@@ -856,6 +1005,11 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
           _buildMealTimeSection('Akşam Yemeği', Icons.dinner_dining, Color(0xFF9C27B0)),
           SizedBox(height: 12),
           _buildMealTimeSection('Atıştırmalık', Icons.fastfood, Color(0xFFFFC107)),
+          
+          SizedBox(height: 16),
+          
+          // Özel Besin Ekleme Kartı
+          _buildQuickAddFoodCard(temaServisi),
         ],
       ),
     );
@@ -1323,6 +1477,8 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
               ),
             ],
           ),
+          
+
           
           SizedBox(height: 12),
           
@@ -1809,7 +1965,7 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
         currentUser!.gunlukKaloriHedefi = yeniKaloriHedefi;
         
         // Veritabanını güncelle
-        await VeriTabaniServisi.kullaniciGuncelle(currentUser!);
+        await currentUser!.save();
         
         // UI'yi güncelle
         setState(() {});
@@ -2008,4 +2164,576 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
       }
     }
   }
+
+  Widget _buildWeightTrackingCard(TemaServisi temaServisi) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: temaServisi.isDarkMode 
+            ? [
+                Color(0xFF673AB7),
+                Color(0xFF7E57C2),
+                Color(0xFF9575CD),
+              ]
+            : [
+                Color(0xFF3F51B5),
+                Color(0xFF5C6BC0),
+                Color(0xFF7986CB),
+              ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFF3F51B5).withOpacity(0.3),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.scale, color: Colors.white, size: 24),
+                  ),
+                  SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kilo Takibi',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Güncel kilonuz ve değişim',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => _tabController.animateTo(2), // İstatistikler sekmesine git
+                    child: Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.analytics, color: Colors.white, size: 20),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () async {
+                      print('ModernDashboard: Kilo giriş ekranına gidiliyor...');
+                      final sonuc = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => KiloGirisEkrani()),
+                      );
+                      print('ModernDashboard: Kilo giriş ekranından dönüldü, sonuç: $sonuc');
+                      if (sonuc == true) {
+                        print('ModernDashboard: Veriler yeniden yükleniyor...');
+                        await _loadUserData(); // Verileri yeniden yükle
+                        await _loadTodayData(); // Günlük verileri de yeniden yükle
+                        print('ModernDashboard: Tüm veriler yenilendi');
+                      }
+                    },
+                    child: Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.add, color: Colors.white, size: 20),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+          
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mevcut Kilo',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        currentWeight != null && currentWeight! > 0
+                            ? '${currentWeight!.toStringAsFixed(1)} kg'
+                            : '${currentUser?.kilo.toStringAsFixed(1) ?? '0.0'} kg',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Haftalık Değişim',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            weeklyWeightChange != null
+                                ? (weeklyWeightChange! > 0 
+                                    ? Icons.trending_up 
+                                    : weeklyWeightChange! < 0 
+                                        ? Icons.trending_down 
+                                        : Icons.trending_flat)
+                                : Icons.trending_flat,
+                            color: weeklyWeightChange != null
+                                ? (weeklyWeightChange! > 0 
+                                    ? Colors.orange 
+                                    : weeklyWeightChange! < 0 
+                                        ? Colors.green 
+                                        : Colors.white)
+                                : Colors.white,
+                            size: 16,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            weeklyWeightChange != null
+                                ? '${weeklyWeightChange!.toStringAsFixed(1)} kg'
+                                : '0.0 kg',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          SizedBox(height: 16),
+          
+          // Kilo takibi mini grafiği
+          Container(
+            height: 120,
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: currentUser != null 
+              ? _buildKiloMiniGrafigi()
+              : Center(
+                  child: Text(
+                    'Grafik için kilo verisi bekleniyor...',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+          ),
+          
+          SizedBox(height: 12),
+          
+          // Kalori dengesi analizi
+          if (_kaloriAnalizi != null) ...[
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        _getKaloriIcon(_kaloriAnalizi!['durum']),
+                        color: _getKaloriRengi(_kaloriAnalizi!['durum']),
+                        size: 16,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Kalori Dengesi: ${_kaloriAnalizi!['durum']}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '${_kaloriAnalizi!['kaloriDengesi'].toStringAsFixed(0)} kcal denge',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 11,
+                    ),
+                  ),
+                  if (_kaloriAnalizi!['tahminKiloEtkisi'] != 0.0) ...[
+                    Text(
+                      'Tahmin: ${_kaloriAnalizi!['tahminKiloEtkisi'].toStringAsFixed(3)} kg etki',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            SizedBox(height: 12),
+          ],
+
+          
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.white.withOpacity(0.8), size: 16),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    monthlyWeightChange != null
+                        ? 'Son ay: ${monthlyWeightChange!.toStringAsFixed(1)} kg değişim'
+                        : 'Düzenli kilo takibi için kilo girişi yapın',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Kilo mini grafiği
+  Widget _buildKiloMiniGrafigi() {
+    if (currentUser == null) return Container();
+    
+    // Kullanıcının mevcut kilosu
+    final mevcutKilo = currentUser!.kilo;
+    
+    // Basit bir trend simülasyonu (gerçek veriler yoksa)
+    final List<double> kiloTrendi = _generateKiloTrendi(mevcutKilo);
+    
+    return Column(
+      children: [
+        // Grafik başlığı
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Son 7 Gün Trendi',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              '${mevcutKilo.toStringAsFixed(1)} kg',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        
+        SizedBox(height: 8),
+        
+        // Mini grafik
+        Expanded(
+          child: kiloTrendi.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.monitor_weight, color: Colors.white, size: 32),
+                      SizedBox(height: 8),
+                      Text(
+                        'Veri Kaydı Başlayın',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : CustomPaint(
+                  painter: KiloMiniGrafikPainter(kiloTrendi),
+                  child: Container(),
+                ),
+        ),
+        
+        SizedBox(height: 8),
+        
+        // Alt bilgi
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '7 gün önce',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.6),
+                fontSize: 10,
+              ),
+            ),
+            Text(
+              'Bugün',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.6),
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  // Kilo trendi verisi oluştur
+  List<double> _generateKiloTrendi(double mevcutKilo) {
+    // Gerçek kilo girişlerini kontrol et
+    if (currentUser != null) {
+      final kiloGirisleri = VeriTabaniServisi.haftalikKiloVerileriniGetir(currentUser!.id);
+      if (kiloGirisleri.isNotEmpty) {
+        // Gerçek veriler varsa onları kullan
+        return kiloGirisleri.map((giris) => giris.kilo).toList();
+      }
+    }
+    
+    // Gerçek veri yoksa sadece mevcut kiloyu göster
+    return [mevcutKilo]; // Tek nokta - rastgele veri üretmeyin
+  }
+
+  // Kilo analizi için yardımcı metodlar
+  Color _getKaloriRengi(String durum) {
+    switch (durum) {
+      case 'Dengede':
+        return Colors.green;
+      case 'Açık':
+        return Colors.orange;
+      case 'Fazla':
+        return Colors.red;
+      default:
+        return Colors.white;
+    }
+  }
+
+  IconData _getKaloriIcon(String durum) {
+    switch (durum) {
+      case 'Dengede':
+        return Icons.balance;
+      case 'Açık':
+        return Icons.trending_down;
+      case 'Fazla':
+        return Icons.trending_up;
+      default:
+        return Icons.help;
+    }
+  }
+}
+
+// Custom Painter sınıfı - mini kilo grafiği için
+class KiloMiniGrafikPainter extends CustomPainter {
+  final List<double> kiloVerileri;
+  
+  KiloMiniGrafikPainter(this.kiloVerileri);
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (kiloVerileri.isEmpty) return;
+    
+    // Çizgi için paint
+    final linePaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+    
+    // Gölge için paint
+    final shadowPaint = Paint()
+      ..color = Colors.white.withOpacity(0.1)
+      ..style = PaintingStyle.fill;
+    
+    // Nokta için paint
+    final dotPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    
+    // Min ve max değerleri bul
+    final minKilo = kiloVerileri.reduce((a, b) => a < b ? a : b);
+    final maxKilo = kiloVerileri.reduce((a, b) => a > b ? a : b);
+    final kiloAraligi = maxKilo - minKilo;
+    
+    // Eğer aralık çok küçükse, biraz genişlet
+    final normalizeEdilmisAralik = kiloAraligi < 1.0 ? 1.0 : kiloAraligi;
+    
+    // Koordinatları hesapla
+    final List<Offset> points = [];
+    final List<Offset> shadowPoints = [];
+    
+    for (int i = 0; i < kiloVerileri.length; i++) {
+      // Tek veri noktası varsa ortaya koy, çoklu veri varsa normale dağıt
+      final x = kiloVerileri.length == 1 
+          ? size.width / 2 
+          : (i / (kiloVerileri.length - 1)) * size.width;
+      
+      // Tek veri noktası varsa Y'yi de ortala, çoklu veri varsa normal hesapla
+      final y = kiloVerileri.length == 1
+          ? size.height / 2
+          : size.height - ((kiloVerileri[i] - minKilo) / normalizeEdilmisAralik * size.height * 0.8) - (size.height * 0.1);
+      
+      points.add(Offset(x, y));
+      shadowPoints.add(Offset(x, y));
+    }
+    
+    // Gölge alanı çiz
+    if (shadowPoints.isNotEmpty) {
+      final shadowPath = Path();
+      shadowPath.moveTo(shadowPoints.first.dx, size.height);
+      
+      for (final point in shadowPoints) {
+        shadowPath.lineTo(point.dx, point.dy);
+      }
+      
+      shadowPath.lineTo(shadowPoints.last.dx, size.height);
+      shadowPath.close();
+      
+      canvas.drawPath(shadowPath, shadowPaint);
+    }
+    
+    // Çizgiyi çiz
+    if (points.length > 1) {
+      final path = Path();
+      path.moveTo(points.first.dx, points.first.dy);
+      
+      for (int i = 1; i < points.length; i++) {
+        path.lineTo(points[i].dx, points[i].dy);
+      }
+      
+      canvas.drawPath(path, linePaint);
+    }
+    
+    // Tek nokta özel durumu - yatay çizgi olarak göster
+    if (points.length == 1) {
+      final point = points.first;
+      final lineY = point.dy;
+      
+      // Yatay çizgi çiz (soldan sağa)
+      canvas.drawLine(
+        Offset(0, lineY),
+        Offset(size.width, lineY),
+        Paint()
+          ..color = Colors.white
+          ..strokeWidth = 3.0
+          ..style = PaintingStyle.stroke,
+      );
+      
+      // Çizgi üzerinde vurgu noktaları
+      for (double x = size.width * 0.2; x <= size.width * 0.8; x += size.width * 0.2) {
+        canvas.drawCircle(Offset(x, lineY), 4.0, Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill);
+        canvas.drawCircle(Offset(x, lineY), 4.0, Paint()
+          ..color = Colors.purple[300]!
+          ..strokeWidth = 2.0
+          ..style = PaintingStyle.stroke);
+      }
+    } else {
+      // Çoklu nokta durumu - normal boyutlarda
+      for (final point in points) {
+        canvas.drawCircle(point, 3.0, dotPaint);
+      }
+      
+      // Son noktayı vurgula
+      if (points.isNotEmpty) {
+        final lastPoint = points.last;
+        canvas.drawCircle(lastPoint, 5.0, Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill);
+        canvas.drawCircle(lastPoint, 5.0, Paint()
+          ..color = Colors.purple[300]!
+          ..strokeWidth = 2.0
+          ..style = PaintingStyle.stroke);
+      }
+    }
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 } 

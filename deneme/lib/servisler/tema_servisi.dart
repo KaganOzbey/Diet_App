@@ -2,26 +2,50 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TemaServisi extends ChangeNotifier {
-  static const String _darkModeKey = 'dark_mode';
   bool _isDarkMode = false;
-
+  
   bool get isDarkMode => _isDarkMode;
 
+  // Napoleon Mavisi Renk Paleti
+  static const Color primaryBlue = Color(0xFF1E3A8A);      // Ana Napoleon mavisi
+  static const Color primaryBlueDark = Color(0xFF1E40AF);  // Koyu ton
+  static const Color primaryBlueLight = Color(0xFF3B82F6); // Açık ton
+  static const Color accentBlue = Color(0xFF60A5FA);       // Vurgu mavisi
+  static const Color lightBlue = Color(0xFFDEE3FF);        // Çok açık mavi
+
+  // Dinamik renk getirici metodlar
+  Color get primaryColor => isDarkMode ? primaryBlueDark : primaryBlue;
+  Color get accentColor => isDarkMode ? accentBlue : primaryBlueLight;
+  Color get surfaceColor => isDarkMode ? Color(0xFF2A2A2A) : Colors.white;
+  Color get backgroundColor => isDarkMode ? Color(0xFF1A1A1A) : Color(0xFFF8F9FA);
+  
+  List<Color> get primaryGradient => isDarkMode 
+    ? [primaryBlueDark, primaryBlueLight]
+    : [primaryBlue, primaryBlueDark];
+
+  List<Color> get backgroundGradient => isDarkMode 
+    ? [Color(0xFF1A1A1A), Color(0xFF2A2A2A), Color(0xFF1E1E1E)]
+    : [Color(0xFFF8F9FA), Color(0xFFF1F5F9), lightBlue];
+
   TemaServisi() {
-    _loadThemePreference();
+    _loadTheme();
   }
 
-  void _loadThemePreference() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    _isDarkMode = prefs.getBool(_darkModeKey) ?? false;
-    notifyListeners();
-  }
-
-  void toggleTheme() async {
+  void toggleTheme() {
     _isDarkMode = !_isDarkMode;
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_darkModeKey, _isDarkMode);
+    _saveTheme();
     notifyListeners();
+  }
+
+  void _loadTheme() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    _isDarkMode = prefs.getBool('isDarkMode') ?? false;
+    notifyListeners();
+  }
+
+  void _saveTheme() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool('isDarkMode', _isDarkMode);
   }
 
   // Light Theme

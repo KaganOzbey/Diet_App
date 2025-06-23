@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../hizmetler/firebase_auth_servisi.dart';
+import '../hizmetler/veri_tabani_servisi.dart';
 import '../widgets/yukleme_gostergesi.dart';
 import 'firebase_giris_ekrani.dart';
+import 'modern_dashboard.dart';
 
 class FirebaseKayitEkrani extends StatefulWidget {
   @override
@@ -141,6 +143,40 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
   }
 
   void _basariliKayitDialogGoster() {
+    // Demo mode'da direkt uygulamaya gir
+    if (FirebaseAuthServisi.demoMode) {
+      // Başarılı kayıt mesajı göster ve direkt dashboard'a git
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Kayıt başarılı! Uygulamaya yönlendiriliyorsunuz...'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      
+      // 1 saniye bekle sonra dashboard'a git
+      Future.delayed(Duration(seconds: 1), () async {
+        final kullanici = await VeriTabaniServisi.aktifKullaniciGetir();
+        if (kullanici != null && mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ModernDashboard(bmr: kullanici.gunlukKaloriHedefi),
+            ),
+            (route) => false,
+          );
+        }
+      });
+      return;
+    }
+    
+    // Normal Firebase mode için dialog göster
     showDialog(
       context: context,
       barrierDismissible: false,

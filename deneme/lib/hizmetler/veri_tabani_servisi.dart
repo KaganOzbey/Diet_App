@@ -4,12 +4,16 @@ import '../modeller/kullanici_modeli.dart';
 import '../modeller/yemek_ogesi_modeli.dart';
 import '../modeller/ogun_girisi_modeli.dart';
 import '../modeller/gunluk_beslenme_modeli.dart';
+import '../modeller/ozel_besin_modeli.dart';
+import '../modeller/kilo_girisi_modeli.dart';
 
 class VeriTabaniServisi {
   static const String _kullaniciKutusu = 'kullaniciKutusu';
   static const String _yemekOgesiKutusu = 'yemekOgesiKutusu';
   static const String _ogunGirisiKutusu = 'ogunGirisiKutusu';
   static const String _gunlukBeslenmeKutusu = 'gunlukBeslenmeKutusu';
+  static const String _ozelBesinKutusu = 'ozelBesinKutusu';
+  static const String _kiloGirisiKutusu = 'kiloGirisiKutusu';
   static const String _aktifKullaniciAnahtari = 'aktifKullanici';
 
   static final Uuid _uuidUretici = Uuid();
@@ -32,12 +36,20 @@ class VeriTabaniServisi {
       if (!Hive.isAdapterRegistered(3)) {
         Hive.registerAdapter(GunlukBeslenmeModeliAdapter());
       }
+      if (!Hive.isAdapterRegistered(4)) {
+        Hive.registerAdapter(OzelBesinModeliAdapter());
+      }
+      if (!Hive.isAdapterRegistered(5)) {
+        Hive.registerAdapter(KiloGirisiModeliAdapter());
+      }
 
       // Kutuları aç
       await Hive.openBox<KullaniciModeli>(_kullaniciKutusu);
       await Hive.openBox<YemekOgesiModeli>(_yemekOgesiKutusu);
       await Hive.openBox<OgunGirisiModeli>(_ogunGirisiKutusu);
       await Hive.openBox<GunlukBeslenmeModeli>(_gunlukBeslenmeKutusu);
+      await Hive.openBox<OzelBesinModeli>(_ozelBesinKutusu);
+      await Hive.openBox<KiloGirisiModeli>(_kiloGirisiKutusu);
       
       print('Hive veritabanı başarıyla başlatıldı');
     } catch (e) {
@@ -68,12 +80,16 @@ class VeriTabaniServisi {
       Hive.registerAdapter(YemekOgesiModeliAdapter());
       Hive.registerAdapter(OgunGirisiModeliAdapter());
       Hive.registerAdapter(GunlukBeslenmeModeliAdapter());
+      Hive.registerAdapter(OzelBesinModeliAdapter());
+      Hive.registerAdapter(KiloGirisiModeliAdapter());
 
       // Kutuları aç
       await Hive.openBox<KullaniciModeli>(_kullaniciKutusu);
       await Hive.openBox<YemekOgesiModeli>(_yemekOgesiKutusu);
       await Hive.openBox<OgunGirisiModeli>(_ogunGirisiKutusu);
       await Hive.openBox<GunlukBeslenmeModeli>(_gunlukBeslenmeKutusu);
+      await Hive.openBox<OzelBesinModeli>(_ozelBesinKutusu);
+      await Hive.openBox<KiloGirisiModeli>(_kiloGirisiKutusu);
       
       print('Hive veritabanı temizlendikten sonra başarıyla başlatıldı');
     } catch (e) {
@@ -87,6 +103,7 @@ class VeriTabaniServisi {
   static Box<YemekOgesiModeli> get _yemekOgesiKutusuRef => Hive.box<YemekOgesiModeli>(_yemekOgesiKutusu);
   static Box<OgunGirisiModeli> get _ogunGirisiKutusuRef => Hive.box<OgunGirisiModeli>(_ogunGirisiKutusu);
   static Box<GunlukBeslenmeModeli> get _gunlukBeslenmeKutusuRef => Hive.box<GunlukBeslenmeModeli>(_gunlukBeslenmeKutusu);
+  static Box<KiloGirisiModeli> get _kiloGirisiKutusuRef => Hive.box<KiloGirisiModeli>(_kiloGirisiKutusu);
 
   // ============ KULLANICI İŞLEMLERİ ============
 
@@ -498,9 +515,190 @@ class VeriTabaniServisi {
     await _yemekOgesiKutusuRef.clear();
     await _ogunGirisiKutusuRef.clear();
     await _gunlukBeslenmeKutusuRef.clear();
+    await _ozelBesinKutusuRef.clear();
     
     final ayarlarKutusu = await Hive.openBox('ayarlar');
     await ayarlarKutusu.clear();
+  }
+
+  // ============ ÖZEL BESİN İŞLEMLERİ ============
+
+  // Özel besin kutusunu getir
+  static Box<OzelBesinModeli> get _ozelBesinKutusuRef => Hive.box<OzelBesinModeli>(_ozelBesinKutusu);
+
+  // Özel besin kaydet
+  static Future<OzelBesinModeli> ozelBesinKaydet(OzelBesinModeli ozelBesin) async {
+    // Hive için güvenli ID oluştur (0-0xFFFFFFFF aralığında)
+    final yeniId = ozelBesin.id ?? _yeniOzelBesinIdOlustur();
+    final yeniOzelBesin = ozelBesin.copyWith(id: yeniId);
+    
+    await _ozelBesinKutusuRef.put(yeniOzelBesin.id, yeniOzelBesin);
+    return yeniOzelBesin;
+  }
+
+  // Güvenli ID oluştur
+  static int _yeniOzelBesinIdOlustur() {
+    // Mevcut ID'leri kontrol et
+    final mevcutIdler = _ozelBesinKutusuRef.values.map((besin) => besin.id).where((id) => id != null).cast<int>().toSet();
+    
+    // 1'den başlayarak boş ID bul
+    int yeniId = 1;
+    while (mevcutIdler.contains(yeniId)) {
+      yeniId++;
+    }
+    
+    return yeniId;
+  }
+
+  // Kullanıcının özel besinlerini getir
+  static List<OzelBesinModeli> kullaniciOzelBesinleriniGetir(String kullaniciId) {
+    return _ozelBesinKutusuRef.values
+        .where((besin) => besin.kullaniciId == kullaniciId)
+        .toList()
+      ..sort((a, b) => b.eklenmeTarihi.compareTo(a.eklenmeTarihi));
+  }
+
+  // Özel besin ara
+  static List<OzelBesinModeli> ozelBesinAra(String kullaniciId, String aramaKelimesi) {
+    final kelime = aramaKelimesi.toLowerCase();
+    return _ozelBesinKutusuRef.values
+        .where((besin) => 
+            besin.kullaniciId == kullaniciId &&
+            besin.isim.toLowerCase().contains(kelime))
+        .toList()
+      ..sort((a, b) => a.isim.compareTo(b.isim));
+  }
+
+  // Özel besin sil
+  static Future<void> ozelBesinSil(int besinId) async {
+    await _ozelBesinKutusuRef.delete(besinId);
+  }
+
+  // Özel besin güncelle
+  static Future<void> ozelBesinGuncelle(OzelBesinModeli ozelBesin) async {
+    await _ozelBesinKutusuRef.put(ozelBesin.id, ozelBesin);
+  }
+
+  // ============ KİLO TAKİBİ İŞLEMLERİ ============
+
+  // Kilo girişi kaydet
+  static Future<KiloGirisiModeli> kiloGirisiKaydet(KiloGirisiModeli kiloGirisi) async {
+    print('VeriTabaniServisi: Kilo girişi kaydediliyor: ${kiloGirisi.kilo} kg, Kullanıcı: ${kiloGirisi.kullaniciId}');
+    
+    final yeniId = kiloGirisi.id.isEmpty ? _uuidUretici.v4() : kiloGirisi.id;
+    final yeniKiloGirisi = kiloGirisi.copyWith(id: yeniId);
+    
+    await _kiloGirisiKutusuRef.put(yeniKiloGirisi.id, yeniKiloGirisi);
+    print('VeriTabaniServisi: Kilo girişi Hive\'a kaydedildi');
+    
+    // Kullanıcının mevcut kilosunu güncelle
+    final kullanici = _kullaniciKutusuRef.get(kiloGirisi.kullaniciId);
+    print('VeriTabaniServisi: Kullanıcı bulundu: ${kullanici?.isim}, Eski kilo: ${kullanici?.kilo}');
+    
+    if (kullanici != null) {
+      final guncellenenKullanici = kullanici.copyWith(
+        kilo: kiloGirisi.kilo,
+        guncellemeTarihi: DateTime.now(),
+      );
+      await _kullaniciKutusuRef.put(guncellenenKullanici.id, guncellenenKullanici);
+      print('VeriTabaniServisi: Kullanıcının kilosu güncellendi: ${guncellenenKullanici.kilo} kg');
+    } else {
+      print('VeriTabaniServisi: HATA - Kullanıcı bulunamadı: ${kiloGirisi.kullaniciId}');
+    }
+    
+    return yeniKiloGirisi;
+  }
+
+  // Kullanıcının kilo girişlerini getir
+  static List<KiloGirisiModeli> kullaniciKiloGirisleriniGetir(String kullaniciId) {
+    return _kiloGirisiKutusuRef.values
+        .where((giris) => giris.kullaniciId == kullaniciId)
+        .toList()
+      ..sort((a, b) => b.olcumTarihi.compareTo(a.olcumTarihi));
+  }
+
+  // Belirli tarih aralığındaki kilo girişlerini getir
+  static List<KiloGirisiModeli> tarihAraligiKiloGirisleriniGetir(
+    String kullaniciId, 
+    DateTime baslangic, 
+    DateTime bitis
+  ) {
+    return _kiloGirisiKutusuRef.values
+        .where((giris) => 
+            giris.kullaniciId == kullaniciId &&
+            giris.olcumTarihi.isAfter(baslangic.subtract(Duration(days: 1))) &&
+            giris.olcumTarihi.isBefore(bitis.add(Duration(days: 1))))
+        .toList()
+      ..sort((a, b) => a.olcumTarihi.compareTo(b.olcumTarihi));
+  }
+
+  // Son kilo girişini getir
+  static KiloGirisiModeli? sonKiloGirisiniGetir(String kullaniciId) {
+    final kiloGirisleri = kullaniciKiloGirisleriniGetir(kullaniciId);
+    return kiloGirisleri.isNotEmpty ? kiloGirisleri.first : null;
+  }
+
+  // Haftalık kilo verilerini getir
+  static List<KiloGirisiModeli> haftalikKiloVerileriniGetir(String kullaniciId) {
+    final bugun = DateTime.now();
+    final haftaOncesi = bugun.subtract(Duration(days: 7));
+    return tarihAraligiKiloGirisleriniGetir(kullaniciId, haftaOncesi, bugun);
+  }
+
+  // Aylık kilo verilerini getir
+  static List<KiloGirisiModeli> aylikKiloVerileriniGetir(String kullaniciId) {
+    final bugun = DateTime.now();
+    final ayOncesi = DateTime(bugun.year, bugun.month - 1, bugun.day);
+    return tarihAraligiKiloGirisleriniGetir(kullaniciId, ayOncesi, bugun);
+  }
+
+  // Kilo değişim hesaplamaları
+  static Map<String, double> kiloIstatistikleriniGetir(String kullaniciId) {
+    final kiloGirisleri = kullaniciKiloGirisleriniGetir(kullaniciId);
+    
+    if (kiloGirisleri.length < 2) {
+      return {
+        'mevcutKilo': kiloGirisleri.isNotEmpty ? kiloGirisleri.first.kilo : 0.0,
+        'haftalikDegisim': 0.0,
+        'aylikDegisim': 0.0,
+        'toplamDegisim': 0.0,
+      };
+    }
+
+    final mevcutKilo = kiloGirisleri.first.kilo;
+    final bugun = DateTime.now();
+    
+    // Haftalık değişim
+    final haftaOncesi = bugun.subtract(Duration(days: 7));
+    final haftalikKilo = kiloGirisleri
+        .where((g) => g.olcumTarihi.isAfter(haftaOncesi))
+        .lastOrNull?.kilo ?? mevcutKilo;
+    
+    // Aylık değişim
+    final ayOncesi = DateTime(bugun.year, bugun.month - 1, bugun.day);
+    final aylikKilo = kiloGirisleri
+        .where((g) => g.olcumTarihi.isAfter(ayOncesi))
+        .lastOrNull?.kilo ?? mevcutKilo;
+    
+    // Toplam değişim (ilk kayıttan itibaren)
+    final ilkKilo = kiloGirisleri.last.kilo;
+
+    return {
+      'mevcutKilo': mevcutKilo,
+      'haftalikDegisim': mevcutKilo - haftalikKilo,
+      'aylikDegisim': mevcutKilo - aylikKilo,
+      'toplamDegisim': mevcutKilo - ilkKilo,
+    };
+  }
+
+  // Kilo girişi sil
+  static Future<void> kiloGirisiniSil(String girisId) async {
+    await _kiloGirisiKutusuRef.delete(girisId);
+  }
+
+  // Kilo girişi güncelle
+  static Future<void> kiloGirisiniGuncelle(KiloGirisiModeli kiloGirisi) async {
+    await _kiloGirisiKutusuRef.put(kiloGirisi.id, kiloGirisi);
   }
 
   // Veritabanını kapat

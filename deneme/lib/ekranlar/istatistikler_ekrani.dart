@@ -188,20 +188,24 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
   }
 
   Widget _buildTrendlerTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Zaman seçici
-          _buildZamanSecici(),
-          
-          SizedBox(height: 16),
-          
-          // Aylık özet kartları (sadece aylık görünümde)
-          if (!haftalikGornum) ...[
-            _buildAylikOzetKartlari(),
-            SizedBox(height: 16),
-          ],
+    return Consumer<TemaServisi>(
+      builder: (context, temaServisi, child) {
+        final isDark = temaServisi.isDarkMode;
+        
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Zaman seçici
+              _buildZamanSecici(isDark),
+              
+              SizedBox(height: 16),
+              
+              // Aylık özet kartları (sadece aylık görünümde)
+              if (!haftalikGornum) ...[
+                _buildAylikOzetKartlari(isDark),
+                SizedBox(height: 16),
+              ],
           
           // Kalori trend grafigi
           KaloriTrendGrafigi(
@@ -215,19 +219,21 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
           // Temel özet kartlar
           _buildOzetKartlari(),
           
-          // Aylık özel analizler
-          if (!haftalikGornum) ...[
-            SizedBox(height: 16),
-            _buildAylikTrendAnalizi(),
-            SizedBox(height: 16),
-            _buildEnCokTuketilenBesinler(),
-            SizedBox(height: 16),
-            _buildAylikBeslenmeKalitesiKarti(),
-            SizedBox(height: 16),
-            _buildHaftalikAylikKarsilastirma(),
-          ],
-        ],
-      ),
+              // Aylık özel analizler
+              if (!haftalikGornum) ...[
+                SizedBox(height: 16),
+                _buildAylikTrendAnalizi(isDark),
+                SizedBox(height: 16),
+                _buildEnCokTuketilenBesinler(isDark),
+                SizedBox(height: 16),
+                _buildAylikBeslenmeKalitesiKarti(isDark),
+                SizedBox(height: 16),
+                _buildHaftalikAylikKarsilastirma(isDark),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -255,13 +261,9 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
             yukseklik: 250,
           ),
           
-          SizedBox(height: 16),
+          SizedBox(height: 16)
           
-          // Kilo takip grafiki
-          KiloTakipGrafigi(
-            kullaniciId: kullanici!.id,
-            hedefKilo: kullanici!.kilo - 5, // Örnek hedef kilo
-          ),
+          // Kilo takip grafiki kaldırıldı - kullanıcı talebiyle
         ],
       ),
     );
@@ -314,15 +316,19 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
     );
   }
 
-  Widget _buildZamanSecici() {
+  Widget _buildZamanSecici(bool isDark) {
     return Card(
+      color: isDark ? Color(0xFF2E3440) : null,
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Row(
           children: [
             Text(
               'Zaman Aralığı:',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : null,
+              ),
             ),
             SizedBox(width: 16),
             Expanded(
@@ -965,17 +971,47 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
     
     final hedefKalori = kullanici!.gunlukKaloriHedefi;
     final ortalamaKalori = ortalamalar['kalori'] as double;
+    final kaloriAsimi = ortalamaKalori - hedefKalori;
     
     if (ortalamaKalori < hedefKalori * 0.8) {
       oneriler.add('⬆️ Kalori alımınızı artırmalısınız (Hedef: ${hedefKalori.toInt()})');
-    } else if (ortalamaKalori > hedefKalori * 1.2) {
-      oneriler.add('⬇️ Kalori alımınızı azaltmalısınız (Hedef: ${hedefKalori.toInt()})');
-    } else {
-      oneriler.add('✅ Kalori hedefi çok başarılı!');
+    } else if (kaloriAsimi > hedefKalori * 0.3) {
+      // %30'dan fazla aşım = TEHLİKELİ
+      oneriler.add('🚨 TEHLİKE! Çok fazla kalori alıyorsunuz (+${kaloriAsimi.toInt()} kcal)');
+      oneriler.add('🏃‍♂️ ACİL: Günde en az 1 saat yoğun egzersiz yapın');
+    } else if (kaloriAsimi > hedefKalori * 0.2) {
+      // %20'den fazla aşım = ZARARI
+      oneriler.add('⚠️ ZARARI! Kalori hedefini aşıyorsunuz (+${kaloriAsimi.toInt()} kcal)');
+      oneriler.add('🚶‍♂️ En az 45 dk hızlı yürüyüş yapmalısınız');
+    } else if (kaloriAsimi > hedefKalori * 0.1) {
+      // %10'dan fazla aşım = DİKKAT
+      oneriler.add('🟡 DİKKAT! Kalori hedefinizden fazla alıyorsunuz');
+      oneriler.add('🏃‍♂️ Ek aktivite yaparak dengelemeye çalışın');
+    } else if (ortalamaKalori >= hedefKalori * 0.9 && ortalamaKalori <= hedefKalori * 1.1) {
+      oneriler.add('✅ Kalori dengesi ideal seviyede');
     }
     
     if (aktifGunler >= 6 && tutarlilik >= 80) {
-      oneriler.add('🎉 Harika bir hafta geçirdiniz!');
+             // Kalori aşımı kontrolü - harika demeden önce kalori durumunu kontrol et
+       bool kaloriAsimVarMi = false;
+       final bugun = DateTime.now();
+       for (int i = 0; i < 7; i++) {
+         final tarih = bugun.subtract(Duration(days: i));
+        final gunlukBeslenme = VeriTabaniServisi.gunlukBeslenmeGetir(kullanici!.id, tarih);
+        if (gunlukBeslenme != null) {
+          final kaloriAsimi = gunlukBeslenme.toplamKalori - kullanici!.gunlukKaloriHedefi;
+          if (kaloriAsimi > 100) {
+            kaloriAsimVarMi = true;
+            break;
+          }
+        }
+      }
+      
+      if (kaloriAsimVarMi) {
+        oneriler.add('⚠️ Tutarlısınız ama kalori aşımı var. Egzersiz ekleyin!');
+      } else {
+        oneriler.add('🎉 Harika bir hafta geçirdiniz!');
+      }
     }
     
     return Column(
@@ -1266,7 +1302,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
     }
   }
 
-  Widget _buildAylikOzetKartlari() {
+  Widget _buildAylikOzetKartlari(bool isDark) {
     final aylikOrtalama = AylikAnalizServisi.aylikOrtalamaKalori(kullanici!.id);
     final hedefOrani = AylikAnalizServisi.hedefTutturmaOrani(kullanici!.id, kullanici!.gunlukKaloriHedefi);
     final makrolar = AylikAnalizServisi.aylikOrtalamaMakrolar(kullanici!.id);
@@ -1276,7 +1312,9 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.blue[400]!, Colors.blue[600]!],
+          colors: isDark 
+            ? [Color(0xFF2E3440), Color(0xFF3B4252)]
+            : [Colors.blue[400]!, Colors.blue[600]!],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1383,17 +1421,19 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
     );
   }
 
-  Widget _buildAylikTrendAnalizi() {
+  Widget _buildAylikTrendAnalizi(bool isDark) {
     final trendAnalizi = AylikAnalizServisi.aylikTrendAnalizi(kullanici!.id);
     
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? Color(0xFF2E3440) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: isDark 
+              ? Colors.black.withOpacity(0.3) 
+              : Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: Offset(0, 5),
           ),
@@ -1404,14 +1444,18 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
         children: [
           Row(
             children: [
-              Icon(Icons.trending_up, color: Colors.blue[800], size: 24),
+              Icon(
+                Icons.trending_up, 
+                color: isDark ? Colors.blue[300] : Colors.blue[800], 
+                size: 24
+              ),
               SizedBox(width: 12),
               Text(
                 'Aylık Trend Analizi',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue[800],
+                  color: isDark ? Colors.blue[300] : Colors.blue[800],
                 ),
               ),
             ],
@@ -1440,12 +1484,12 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                     ),
                     SizedBox(width: 12),
                     Expanded(
-                      child: Text(
+                      child:                       Text(
                         trendAnalizi['aciklama'],
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey[800],
+                          color: isDark ? Colors.grey[300] : Colors.grey[800],
                         ),
                       ),
                     ),
@@ -1460,13 +1504,18 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                       _buildTrendDetay(
                         'İlk Hafta',
                         '${trendAnalizi['ilkHaftaOrtalama'].toInt()} kcal',
-                        Colors.grey[600]!,
+                        isDark ? Colors.grey[400]! : Colors.grey[600]!,
+                        isDark: isDark,
                       ),
-                      Icon(Icons.arrow_forward, color: Colors.grey[400]),
+                      Icon(
+                        Icons.arrow_forward, 
+                        color: isDark ? Colors.grey[500] : Colors.grey[400]
+                      ),
                       _buildTrendDetay(
                         'Son Hafta',
                         '${trendAnalizi['sonHaftaOrtalama'].toInt()} kcal',
                         _getTrendRengi(trendAnalizi['trend']),
+                        isDark: isDark,
                       ),
                     ],
                   ),
@@ -1492,14 +1541,14 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
     );
   }
 
-  Widget _buildTrendDetay(String baslik, String deger, Color renk) {
+  Widget _buildTrendDetay(String baslik, String deger, Color renk, {bool isDark = false}) {
     return Column(
       children: [
         Text(
           baslik,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey[600],
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
           ),
         ),
         Text(
@@ -1514,17 +1563,19 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
     );
   }
 
-  Widget _buildEnCokTuketilenBesinler() {
+  Widget _buildEnCokTuketilenBesinler(bool isDark) {
     final besinler = AylikAnalizServisi.enCokTuketilenBesinler(kullanici!.id, limit: 5);
     
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? Color(0xFF2E3440) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: isDark 
+              ? Colors.black.withOpacity(0.3) 
+              : Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: Offset(0, 5),
           ),
@@ -1535,14 +1586,18 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
         children: [
           Row(
             children: [
-              Icon(Icons.restaurant, color: Colors.green[800], size: 24),
+              Icon(
+                Icons.restaurant, 
+                color: isDark ? Colors.green[300] : Colors.green[800], 
+                size: 24
+              ),
               SizedBox(width: 12),
               Text(
                 'En Çok Tüketilen Besinler (30 Gün)',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.green[800],
+                  color: isDark ? Colors.green[300] : Colors.green[800],
                 ),
               ),
             ],
@@ -1555,7 +1610,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
               child: Text(
                 'Henüz yeterli veri yok',
                 style: TextStyle(
-                  color: Colors.grey[600],
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
                   fontSize: 16,
                 ),
               ),
@@ -1570,9 +1625,11 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                   margin: EdgeInsets.only(bottom: 12),
                   padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.green[50],
+                    color: isDark ? Colors.green[900] : Colors.green[50],
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green[200]!),
+                    border: Border.all(
+                      color: isDark ? Colors.green[600]! : Colors.green[200]!
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -1603,13 +1660,14 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : null,
                               ),
                             ),
                             Text(
                               '${besin['tuketimSayisi']} kez tüketildi',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey[600],
+                                color: isDark ? Colors.grey[400] : Colors.grey[600],
                               ),
                             ),
                           ],
@@ -1630,7 +1688,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                             'toplam',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey[600],
+                              color: isDark ? Colors.grey[400] : Colors.grey[600],
                             ),
                           ),
                         ],
@@ -1712,76 +1770,123 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
   Widget _buildBeslenmeSkoruKarti() {
     if (kullanici == null || bugunBeslenme == null) return Container();
     
-    final skor = 75.0; // Basit placeholder
-    
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(
-              'Günlük Beslenme Skoru',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.teal[700],
-              ),
-            ),
-            SizedBox(height: 20),
-            
-            Stack(
-              alignment: Alignment.center,
+    // Gerçek beslenme skorunu hesapla
+    return FutureBuilder<Map<String, dynamic>>(
+      future: BeslenmeAnalizServisi.gunlukBeslenmeSkoruHesapla(kullanici!.id, DateTime.now()),
+      builder: (context, snapshot) {
+        double skor = 0.0;
+        String durum = 'Hesaplanıyor...';
+        String aciklama = 'Beslenme skoru hesaplanıyor...';
+        
+        if (snapshot.hasData) {
+          skor = (snapshot.data!['skor'] as int).toDouble();
+          durum = snapshot.data!['durum'] as String;
+          aciklama = snapshot.data!['aciklama'] as String;
+        } else if (snapshot.hasError) {
+          skor = bugunBeslenme!.beslenmeSkoru; // Fallback to model calculation
+          durum = 'Hesaplandı';
+          aciklama = 'Günlük beslenme verilerinize göre hesaplandı';
+        }
+        
+        return Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
               children: [
-                SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: CircularProgressIndicator(
-                    value: skor / 100,
-                    backgroundColor: Colors.grey[300],
-                    color: Colors.green,
-                    strokeWidth: 12,
+                Text(
+                  'Günlük Beslenme Skoru',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal[700],
                   ),
                 ),
-                Column(
+                SizedBox(height: 20),
+                
+                Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Text(
-                      '${skor.toInt()}',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                    SizedBox(
+                      width: 120,
+                      height: 120,
+                      child: CircularProgressIndicator(
+                        value: skor / 100,
+                        backgroundColor: Colors.grey[300],
+                        color: _getSkorRengi(skor.toInt()),
+                        strokeWidth: 12,
                       ),
                     ),
-                    Text(
-                      '/100',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                      ),
+                    Column(
+                      children: [
+                        Text(
+                          '${skor.toInt()}',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: _getSkorRengi(skor.toInt()),
+                          ),
+                        ),
+                        Text(
+                          '/100',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
+                
+                SizedBox(height: 16),
+                
+                Text(
+                  durum,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _getSkorRengi(skor.toInt()),
+                  ),
+                ),
+                
+                SizedBox(height: 8),
+                
+                Text(
+                  aciklama,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
               ],
             ),
-            
-            SizedBox(height: 16),
-            
-            Text(
-              'İyi bir beslenme performansı gösteriyorsunuz!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.green,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildAylikBeslenmeKalitesiKarti() {
+  Color _getSkorRengi(int skor) {
+    // Kalori aşımı kontrolü - bugünkü beslenmeyi kontrol et
+    if (bugunBeslenme != null && kullanici != null) {
+      final kaloriAsimi = bugunBeslenme!.toplamKalori - kullanici!.gunlukKaloriHedefi;
+      if (kaloriAsimi > 100) {
+        return Colors.red; // Kalori aşımında kırmızı
+      }
+    }
+    
+    // Normal skor rengi (sadece kalori aşımı yoksa)
+    if (skor >= 90) return Colors.green;
+    if (skor >= 80) return Colors.lightGreen;
+    if (skor >= 70) return Colors.blue;
+    if (skor >= 60) return Colors.orange;
+    if (skor >= 50) return Colors.deepOrange;
+    return Colors.red;
+  }
+
+  Widget _buildAylikBeslenmeKalitesiKarti(bool isDark) {
     final kaliteAnalizi = AylikAnalizServisi.beslenmeKalitesiPuani(kullanici!.id, kullanici!);
     final puan = (kaliteAnalizi['puan'] ?? 0) as int;
     final detaylarDynamic = kaliteAnalizi['detaylar'] as Map<String, dynamic>?;
@@ -1794,11 +1899,16 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
       });
     }
     
+    // Eğer veri yoksa demo veriler göster
+    final bool veriVar = puan > 0 || detaylar.values.any((value) => value > 0);
+    
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.purple[400]!, Colors.purple[600]!],
+          colors: isDark 
+            ? [Color(0xFF4A5568), Color(0xFF2D3748)]
+            : [Colors.purple[400]!, Colors.purple[600]!],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1823,55 +1933,91 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
           
           SizedBox(height: 20),
           
-          Row(
-            children: [
-              // Sol taraf - Genel puan
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      '$puan',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '100 üzerinden',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 14,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      kaliteAnalizi['aciklama'] ?? 'Veri yetersiz',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
+          if (!veriVar) ...[
+            // Veri yoksa bilgi mesajı göster
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              
-              SizedBox(width: 20),
-              
-              // Sağ taraf - Kategori detayları
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildKaliteKategorisi('Kalori Tutarlılığı', detaylar['kalori_tutarliligi'] ?? 0.0),
-                    _buildKaliteKategorisi('Protein Yeterliliği', detaylar['protein_yeterliligi'] ?? 0.0),
-                    _buildKaliteKategorisi('Besin Çeşitliliği', detaylar['beslenme_cesitliligi'] ?? 0.0),
-                    _buildKaliteKategorisi('Veri Tutarlılığı', detaylar['gun_sayisi_tutarliligi'] ?? 0.0),
-                  ],
-                ),
+              child: Column(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.white, size: 32),
+                  SizedBox(height: 8),
+                  Text(
+                    'Henüz Yeterli Veri Yok',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Beslenme kalite puanınızı görmek için en az 7 günlük beslenme verisi gerekli. Günlük beslenme kaydı yapmaya başlayın!',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ] else ...[
+            // Veri varsa normal görünüm
+            Row(
+              children: [
+                // Sol taraf - Genel puan
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        '$puan',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '100 üzerinden',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        kaliteAnalizi['aciklama'] ?? 'Veri yetersiz',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                SizedBox(width: 20),
+                
+                // Sağ taraf - Kategori detayları
+                Expanded(
+                  child: Column(
+                    children: [
+                      _buildKaliteKategorisi('Kalori Tutarlılığı', detaylar['kalori_tutarliligi'] ?? 0.0),
+                      _buildKaliteKategorisi('Protein Yeterliliği', detaylar['protein_yeterliligi'] ?? 0.0),
+                      _buildKaliteKategorisi('Besin Çeşitliliği', detaylar['beslenme_cesitliligi'] ?? 0.0),
+                      _buildKaliteKategorisi('Veri Tutarlılığı', detaylar['gun_sayisi_tutarliligi'] ?? 0.0),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -1904,17 +2050,19 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
     );
   }
 
-  Widget _buildHaftalikAylikKarsilastirma() {
+  Widget _buildHaftalikAylikKarsilastirma(bool isDark) {
     final karsilastirma = AylikAnalizServisi.haftalikAylikKarsilastirma(kullanici!.id);
     
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? Color(0xFF2E3440) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: isDark 
+              ? Colors.black.withOpacity(0.3) 
+              : Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: Offset(0, 5),
           ),
@@ -1925,14 +2073,18 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
         children: [
           Row(
             children: [
-              Icon(Icons.compare_arrows, color: Colors.orange[800], size: 24),
+              Icon(
+                Icons.compare_arrows, 
+                color: isDark ? Colors.orange[300] : Colors.orange[800], 
+                size: 24
+              ),
               SizedBox(width: 12),
               Text(
                 'Haftalık vs Aylık Karşılaştırma',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.orange[800],
+                  color: isDark ? Colors.orange[300] : Colors.orange[800],
                 ),
               ),
             ],
@@ -1948,6 +2100,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                   '${karsilastirma['haftalikOrtalama'].toInt()} kcal',
                   '${karsilastirma['haftalikGunSayisi']} gün veri',
                   Colors.blue,
+                  isDark: isDark,
                 ),
               ),
               SizedBox(width: 16),
@@ -1957,6 +2110,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                   '${karsilastirma['aylikOrtalama'].toInt()} kcal',
                   '${karsilastirma['aylikGunSayisi']} gün veri',
                   Colors.green,
+                  isDark: isDark,
                 ),
               ),
             ],
@@ -1967,7 +2121,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
           Container(
             padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: isDark ? Colors.grey[800] : Colors.grey[50],
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -1977,7 +2131,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
+                    color: isDark ? Colors.grey[300] : Colors.grey[800],
                   ),
                 ),
                 SizedBox(height: 8),
@@ -1993,7 +2147,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
                   '(%${karsilastirma['yuzdelikFark'].toStringAsFixed(1)} değişim)',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey[600],
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
                   ),
                 ),
               ],
@@ -2004,11 +2158,11 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
     );
   }
 
-  Widget _buildKarsilastirmaKutusu(String baslik, String deger, String altMetin, Color renk) {
+  Widget _buildKarsilastirmaKutusu(String baslik, String deger, String altMetin, Color renk, {bool isDark = false}) {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: renk.withOpacity(0.1),
+        color: renk.withOpacity(isDark ? 0.2 : 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: renk.withOpacity(0.3)),
       ),
@@ -2029,7 +2183,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
+              color: isDark ? Colors.grey[300] : Colors.grey[800],
             ),
           ),
           SizedBox(height: 4),
@@ -2037,7 +2191,7 @@ class _IstatistiklerEkraniState extends State<IstatistiklerEkrani>
             altMetin,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[600],
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
             ),
           ),
         ],

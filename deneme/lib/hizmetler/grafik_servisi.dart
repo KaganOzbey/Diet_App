@@ -112,24 +112,57 @@ class GrafikServisi {
     ];
   }
   
-  // Kilo takibi için veri (şimdilik simüle edilmiş)
+  // Kilo takibi için veri - manuel girişler + profil kilosu entegrasyonu
   static Future<List<FlSpot>> kiloTakipVerisiGetir(String kullaniciId) async {
-    final kullanici = await VeriTabaniServisi.aktifKullaniciGetir();
-    if (kullanici == null) return [];
-    
-    // Şimdilik statik veri döndürelim, ileride kilo takip sistemi eklenecek
-    final bugun = DateTime.now();
-    List<FlSpot> veriler = [];
-    
-    for (int i = 0; i < 30; i++) {
-      final tarih = bugun.subtract(Duration(days: 29 - i));
-      // Basit bir simulasyon - gerçekte kullanıcının kilo kayıtları olacak
-      final kiloDegisimi = (i * 0.05) + (i % 3 == 0 ? -0.1 : 0.05);
-      final kilo = kullanici.kilo - kiloDegisimi;
-      veriler.add(FlSpot(i.toDouble(), kilo));
+    try {
+      print('🔍 GrafikServisi: Kilo takip verisi alınıyor - Kullanıcı ID: $kullaniciId');
+      
+      // Manuel kilo girişlerini al
+      final kiloGirisleri = VeriTabaniServisi.kullaniciKiloGirisleriniGetir(kullaniciId);
+      print('📊 GrafikServisi: Manuel kilo girişi sayısı: ${kiloGirisleri.length}');
+      
+      // Kullanıcı profilini al
+      final kullanici = await VeriTabaniServisi.aktifKullaniciGetir();
+      print('👤 GrafikServisi: Kullanıcı profil kilosu: ${kullanici?.kilo ?? 'null'}');
+      
+      List<FlSpot> veriler = [];
+      final bugun = DateTime.now();
+      
+      if (kiloGirisleri.isNotEmpty) {
+        // Manuel kilo girişleri varsa onları kullan
+        print('✅ GrafikServisi: Manuel girişler işleniyor');
+        
+        // Son 30 günlük verileri filtrele
+        final otuzGunOnce = bugun.subtract(Duration(days: 30));
+        final filtrelenmisGirisler = kiloGirisleri
+            .where((giris) => giris.olcumTarihi.isAfter(otuzGunOnce))
+            .toList();
+        
+        // Tarihe göre sırala (eskiden yeniye)
+        filtrelenmisGirisler.sort((a, b) => a.olcumTarihi.compareTo(b.olcumTarihi));
+        
+        for (int i = 0; i < filtrelenmisGirisler.length; i++) {
+          final giris = filtrelenmisGirisler[i];
+          // X ekseni için gün farkını hesapla
+          final gunFarki = bugun.difference(giris.olcumTarihi).inDays;
+          final xDegeri = (30 - gunFarki).toDouble().clamp(0.0, 30.0);
+          
+          veriler.add(FlSpot(xDegeri, giris.kilo));
+          print('📈 GrafikServisi: Veri eklendi - X: $xDegeri, Y: ${giris.kilo}');
+        }
+      } else if (kullanici != null && kullanici.kilo > 0) {
+        // Manuel giriş yoksa profil kilosunu bugün için ekle
+        print('🔄 GrafikServisi: Profil kilosu kullanılıyor: ${kullanici.kilo} kg');
+        veriler.add(FlSpot(30.0, kullanici.kilo)); // Bugün = X ekseni 30
+      }
+      
+      print('📋 GrafikServisi: Toplam veri noktası: ${veriler.length}');
+      return veriler;
+      
+    } catch (e) {
+      print('❌ GrafikServisi: Kilo takip verisi alma hatası: $e');
+      return [];
     }
-    
-    return veriler;
   }
   
   // Öğün dağılımı bar chart verisi
@@ -216,14 +249,18 @@ class GrafikServisi {
   }
   
   static String _basariDurumuMesajiGetir(num oran) {
-    if (oran >= 80 && oran <= 120) {
+    if (oran > 150) {
+      return '🚨 TEHLİKE! Çok fazla kalori - acil egzersiz gerekli!';
+    } else if (oran > 130) {
+      return '⚠️ ZARARI! Fazla kalori - aktivite artırın!';
+    } else if (oran > 115) {
+      return '🟡 DİKKAT! Hedef aşıldı - kontrol edin!';
+    } else if (oran >= 85 && oran <= 115) {
       return 'Mükemmel! Hedefinize çok yakınsınız.';
     } else if (oran < 80) {
       return 'Daha fazla kalori almalısınız.';
-    } else if (oran > 120 && oran <= 140) {
-      return 'Hedefi biraz aştınız, dikkatli olun.';
     } else {
-      return 'Hedefi çok aştınız, dikkat edin.';
+      return 'Normal seviyede.';
     }
   }
   

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../hizmetler/firebase_auth_servisi.dart';
+import '../hizmetler/veri_tabani_servisi.dart';
 import '../widgets/yukleme_gostergesi.dart';
 import 'firebase_kayit_ekrani.dart';
 import 'sifre_sifirlama_ekrani.dart';
-import 'ana_ekran.dart';
+import 'modern_dashboard.dart';
 import 'bilgi_giris_ekrani.dart';
 
 class FirebaseGirisEkrani extends StatefulWidget {
@@ -82,10 +83,14 @@ class _FirebaseGirisEkraniState extends State<FirebaseGirisEkrani>
           return;
         }
 
-        // Ana ekrana git
+        // Kullanıcının gerçek BMR değerini al
+        final aktifKullanici = await VeriTabaniServisi.aktifKullaniciGetir();
+        final bmrDegeri = aktifKullanici?.gunlukKaloriHedefi ?? 2000.0;
+        
+        // Modern Dashboard'a git (diğer navigasyonlarla tutarlı)
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => AnaEkran(bmr: 2000)), // BMR veritabanından gelecek
+          MaterialPageRoute(builder: (context) => ModernDashboard(bmr: bmrDegeri)),
           (route) => false,
         );
       }

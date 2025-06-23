@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../hizmetler/grafik_servisi.dart';
+import '../../hizmetler/veri_tabani_servisi.dart';
 
 class KiloTakipGrafigi extends StatefulWidget {
   final String kullaniciId;
   final double? hedefKilo;
+  final bool kompaktMod; // Dashboard için kompakt görünüm
 
   const KiloTakipGrafigi({
     Key? key,
     required this.kullaniciId,
     this.hedefKilo,
+    this.kompaktMod = false,
   }) : super(key: key);
 
   @override
@@ -32,26 +35,62 @@ class _KiloTakipGrafigiState extends State<KiloTakipGrafigi> {
     setState(() => yukleniyor = true);
     
     try {
-      final veriler = await GrafikServisi.kiloTakipVerisiGetir(widget.kullaniciId);
+      print('🔍 KiloTakipGrafigi: Veri yükleme başlıyor - Kullanıcı ID: ${widget.kullaniciId}');
       
-      if (veriler.isNotEmpty) {
-        final kiloDegerleri = veriler.map((spot) => spot.y).toList();
+      // Grafik servisinden veriyi al (tüm mantık orada)
+      final tumVeriler = await GrafikServisi.kiloTakipVerisiGetir(widget.kullaniciId);
+      print('📊 KiloTakipGrafigi: Alınan veri sayısı: ${tumVeriler.length}');
+      
+      if (tumVeriler.isNotEmpty) {
+        final kiloDegerleri = tumVeriler.map((spot) => spot.y).toList();
         maxY = kiloDegerleri.reduce((a, b) => a > b ? a : b) + 5;
         minY = kiloDegerleri.reduce((a, b) => a < b ? a : b) - 5;
+        print('📏 KiloTakipGrafigi: Min: $minY, Max: $maxY');
       }
       
       setState(() {
-        kiloVerileri = veriler;
+        kiloVerileri = tumVeriler;
         yukleniyor = false;
       });
+      
+      print('✅ KiloTakipGrafigi: Veri yükleme tamamlandı - ${tumVeriler.length} nokta');
     } catch (e) {
       setState(() => yukleniyor = false);
-      print('Kilo verisi yükleme hatası: $e');
+      print('❌ KiloTakipGrafigi: Veri yükleme hatası: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.kompaktMod) {
+      // Dashboard için kompakt görünüm
+      print('🖥️ Kompakt mod - Veri sayısı: ${kiloVerileri.length}, Yükleniyor: $yukleniyor');
+      return Container(
+        height: 100,
+        child: yukleniyor
+            ? Center(child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              ))
+            : kiloVerileri.isEmpty
+                ? Center(
+                    child: Text(
+                      'Veri yok',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 12,
+                      ),
+                    ),
+                  )
+                : _buildKompaktGrafik(),
+      );
+    }
+    
+    // Normal tam görünüm
     return Card(
       elevation: 4,
       child: Padding(
@@ -182,7 +221,9 @@ class _KiloTakipGrafigiState extends State<KiloTakipGrafigi> {
         ),
         
         minX: 0,
-        maxX: kiloVerileri.length.toDouble() - 1,
+        maxX: kiloVerileri.isNotEmpty 
+            ? kiloVerileri.map((spot) => spot.x).reduce((a, b) => a > b ? a : b).clamp(1.0, 30.0)
+            : 30.0,
         minY: minY,
         maxY: maxY,
         
@@ -244,12 +285,87 @@ class _KiloTakipGrafigiState extends State<KiloTakipGrafigi> {
     );
   }
 
+  Widget _buildKompaktGrafik() {
+    print('📈 Kompakt grafik oluşturuluyor - Veri: ${kiloVerileri.length} nokta');
+    
+    // Eğer tek veri noktası varsa, onu göster
+    if (kiloVerileri.length == 1) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.monitor_weight, color: Colors.white, size: 24),
+            Text(
+              '${kiloVerileri.first.y.toStringAsFixed(1)} kg',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              'Mevcut Kilo',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(show: false),
+        titlesData: FlTitlesData(show: false),
+        borderData: FlBorderData(show: false),
+        
+        minX: 0,
+        maxX: kiloVerileri.isNotEmpty 
+            ? kiloVerileri.map((spot) => spot.x).reduce((a, b) => a > b ? a : b).clamp(1.0, 30.0)
+            : 30.0,
+        minY: minY,
+        maxY: maxY,
+        
+        lineBarsData: [
+          LineChartBarData(
+            spots: kiloVerileri,
+            isCurved: true,
+            color: Colors.white,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                return FlDotCirclePainter(
+                  radius: 3,
+                  color: Colors.white,
+                  strokeWidth: 1,
+                  strokeColor: Colors.white.withOpacity(0.5),
+                );
+              },
+            ),
+            belowBarData: BarAreaData(
+              show: true,
+              color: Colors.white.withOpacity(0.1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<FlSpot> _hedefCizgisiOlustur() {
-    if (widget.hedefKilo == null || kiloVerileri.isEmpty) return [];
+    if (widget.hedefKilo == null) return [];
+    
+    final maxX = kiloVerileri.isNotEmpty 
+        ? kiloVerileri.map((spot) => spot.x).reduce((a, b) => a > b ? a : b).clamp(1.0, 30.0)
+        : 30.0;
     
     return [
       FlSpot(0, widget.hedefKilo!),
-      FlSpot(kiloVerileri.length.toDouble() - 1, widget.hedefKilo!),
+      FlSpot(maxX, widget.hedefKilo!),
     ];
   }
 } 
