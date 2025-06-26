@@ -1,48 +1,29 @@
 {
   "project_info": {
-    "project_number": "123456789012",
-    "firebase_url": "https://diet-app-demo-default-rtdb.firebaseio.com",
-    "project_id": "diet-app-demo",
-    "storage_bucket": "diet-app-demo.appspot.com"
+    "project_number": "775898729605",
+    "project_id": "diet-app-501bb",
+    "storage_bucket": "diet-app-501bb.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:abcdef123456",
+        "mobilesdk_app_id": "1:775898729605:android:b066bc2c7759d781246dec",
         "android_client_info": {
           "package_name": "com.example.deneme"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.deneme",
-            "certificate_hash": "abcdef1234567890abcdef1234567890abcdef12"
-          }
-        },
-        {
-          "client_id": "123456789012-zyxwvutsrqponmlkjihgfedcba654321.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC_example_key_123456789"
+          "current_key": "AIzaSyDOwAgznKr79FHziZpGgxSAHTASoaEhfHk"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "123456789012-zyxwvutsrqponmlkjihgfedcba654321.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }
   ],
   "configuration_version": "1"
-} 
+}

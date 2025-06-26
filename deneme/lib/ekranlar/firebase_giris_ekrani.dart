@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../hizmetler/firebase_auth_servisi.dart';
 import '../hizmetler/veri_tabani_servisi.dart';
 import '../widgets/yukleme_gostergesi.dart';
@@ -8,431 +9,287 @@ import 'modern_dashboard.dart';
 import 'bilgi_giris_ekrani.dart';
 
 class FirebaseGirisEkrani extends StatefulWidget {
+  const FirebaseGirisEkrani({super.key});
+
   @override
-  _FirebaseGirisEkraniState createState() => _FirebaseGirisEkraniState();
+  State<FirebaseGirisEkrani> createState() => _FirebaseGirisEkraniState();
 }
 
-class _FirebaseGirisEkraniState extends State<FirebaseGirisEkrani>
-    with SingleTickerProviderStateMixin {
+class _FirebaseGirisEkraniState extends State<FirebaseGirisEkrani> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _sifreController = TextEditingController();
 
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
   bool _yukleniyor = false;
-  bool _sifreGosteriliyor = false;
-  bool _beniHatirla = false;
-
-  @override
-  void initState() {
-    super.initState();
-    
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 1200),
-      vsync: this,
-    );
-    
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _slideAnimation = Tween<Offset>(
-      begin: Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutBack,
-    ));
-    
-    _animationController.forward();
-  }
+  bool _sifreGizli = true;
 
   @override
   void dispose() {
-    _animationController.dispose();
     _emailController.dispose();
     _sifreController.dispose();
     super.dispose();
   }
 
   Future<void> _girisYap() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _yukleniyor = true);
+    setState(() {
+      _yukleniyor = true;
+    });
 
     try {
-      final basarili = await FirebaseAuthServisi.epostaIleGirisYap(
-        _emailController.text.trim(),
-        _sifreController.text,
+      // Firebase Auth ile giriş yap
+      User? kullanici = await FirebaseAuthServisi.emailIleGirisYap(
+        email: _emailController.text.trim(),
+        sifre: _sifreController.text,
       );
 
-      if (basarili) {
-        // Email doğrulanmış mı kontrol et (demo mode'da skip edilir)
-        final kullanici = FirebaseAuthServisi.mevcutKullanici;
-        if (kullanici != null && !kullanici.emailVerified && !FirebaseAuthServisi.demoMode) {
-          _emailDogrulamaUyarisiGoster();
-          return;
-        }
-
-        // Kullanıcının gerçek BMR değerini al
+      if (kullanici != null) {
+        // Kullanıcının verilerini kontrol et
         final aktifKullanici = await VeriTabaniServisi.aktifKullaniciGetir();
-        final bmrDegeri = aktifKullanici?.gunlukKaloriHedefi ?? 2000.0;
         
-        // Modern Dashboard'a git (diğer navigasyonlarla tutarlı)
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => ModernDashboard(bmr: bmrDegeri)),
-          (route) => false,
-        );
+        if (mounted) {
+          if (aktifKullanici != null) {
+            // Kullanıcı verileri var, dashboard'a git
+            final bmrDegeri = aktifKullanici.gunlukKaloriHedefi;
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ModernDashboard(bmr: bmrDegeri),
+              ),
+              (route) => false,
+            );
+          } else {
+            // Kullanıcı verileri yok, bilgi giriş ekranına git
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BilgiGirisEkrani(),
+              ),
+              (route) => false,
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Giriş yapılamadı: $e'),
+            content: Text('❌ Giriş hatası: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } finally {
       if (mounted) {
-        setState(() => _yukleniyor = false);
+        setState(() {
+          _yukleniyor = false;
+        });
       }
     }
-  }
-
-  void _emailDogrulamaUyarisiGoster() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Email Doğrulama'),
-          ],
-        ),
-        content: Text(
-          'Hesabınıza erişebilmek için email adresinizi doğrulamanız gerekiyor. '
-          'Doğrulama email\'i tekrar gönderilsin mi?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Daha Sonra'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await FirebaseAuthServisi.emailDogrulamaTekrarGonder(context);
-            },
-            child: Text('Email Gönder'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.green[300]!,
-              Colors.green[500]!,
-              Colors.green[700]!,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: _yukleniyor
-              ? Center(
-                  child: YuklemeHelper.kartYukleme(
-                    mesaj: 'Giriş yapılıyor...',
-                    renk: Colors.white,
-                  ),
-                )
-              : _buildGirisFormu(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGirisFormu() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(24),
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: Column(
-            children: [
-              SizedBox(height: 60),
-              
-              // Logo ve başlık
-              _buildBaslik(),
-              
-              SizedBox(height: 50),
-              
-              // Giriş formu
-              _buildFormKarti(),
-              
-              SizedBox(height: 24),
-              
-              // Şifre sıfırlama
-              _buildSifreSifirlamaButonu(),
-              
-              SizedBox(height: 32),
-              
-              // Kayıt ol linki
-              _buildKayitOlLinki(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBaslik() {
-    return Column(
-      children: [
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 20,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.restaurant_menu,
-            size: 50,
-            color: Colors.green[600],
-          ),
-        ),
-        
-        SizedBox(height: 24),
-        
-        Text(
-          'Hoş Geldiniz',
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'Giriş Yap',
           style: TextStyle(
-            fontSize: 32,
+            color: Colors.black87,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
           ),
         ),
-        
-        SizedBox(height: 8),
-        
-        Text(
-          'Beslenme takibinize devam edin',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white70,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFormKarti() {
-    return Card(
-      elevation: 10,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
       ),
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              // Email field
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Email Adresi',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.green, width: 2),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 40),
+                
+                // Başlık
+                const Text(
+                  '🏠 Hoş Geldiniz!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Email adresi gerekli';
-                  }
-                  if (!FirebaseAuthServisi.emailGecerliMi(value)) {
-                    return 'Geçerli bir email adresi girin';
-                  }
-                  return null;
-                },
-              ),
-              
-              SizedBox(height: 16),
-              
-              // Şifre field
-              TextFormField(
-                controller: _sifreController,
-                obscureText: !_sifreGosteriliyor,
-                textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _girisYap(),
-                decoration: InputDecoration(
-                  labelText: 'Şifre',
-                  prefixIcon: Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(_sifreGosteriliyor ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () {
-                      setState(() {
-                        _sifreGosteriliyor = !_sifreGosteriliyor;
-                      });
-                    },
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.green, width: 2),
+                
+                const SizedBox(height: 8),
+                
+                const Text(
+                  'Hesabınıza giriş yapın',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54,
                   ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Şifre gerekli';
-                  }
-                  if (value.length < 6) {
-                    return 'Şifre en az 6 karakter olmalı';
-                  }
-                  return null;
-                },
-              ),
-              
-              SizedBox(height: 16),
-              
-              // Beni hatırla
-              Row(
-                children: [
-                  Checkbox(
-                    value: _beniHatirla,
-                    onChanged: (value) {
-                      setState(() {
-                        _beniHatirla = value ?? false;
-                      });
-                    },
-                    activeColor: Colors.green,
-                  ),
-                  Text('Beni Hatırla'),
-                ],
-              ),
-              
-              SizedBox(height: 24),
-              
-              // Giriş butonu
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _girisYap,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green[600],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
+                
+                const SizedBox(height: 50),
+                
+                // Email alanı
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email Adresi',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 5,
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.blue, width: 2),
+                    ),
                   ),
-                  child: Text(
-                    'Giriş Yap',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Email adresi gerekli';
+                    }
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                      return 'Geçerli bir email adresi girin';
+                    }
+                    return null;
+                  },
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Şifre alanı
+                TextFormField(
+                  controller: _sifreController,
+                  obscureText: _sifreGizli,
+                  decoration: InputDecoration(
+                    labelText: 'Şifre',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(_sifreGizli ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () {
+                        setState(() {
+                          _sifreGizli = !_sifreGizli;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.blue, width: 2),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Şifre gerekli';
+                    }
+                    return null;
+                  },
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Şifremi unuttum linki
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SifreSifirlamaEkrani(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'Şifremi Unuttum?',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSifreSifirlamaButonu() {
-    return TextButton(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SifreSifirlamaEkrani(),
-          ),
-        );
-      },
-      child: Text(
-        'Şifremi Unuttum',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-          decoration: TextDecoration.underline,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKayitOlLinki() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          'Hesabınız yok mu? ',
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 16,
-          ),
-        ),
-        TextButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => FirebaseKayitEkrani(),
-              ),
-            );
-          },
-          child: Text(
-            'Kayıt Ol',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              decoration: TextDecoration.underline,
+                
+                const SizedBox(height: 30),
+                
+                // Giriş yap butonu
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _yukleniyor ? null : _girisYap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: _yukleniyor
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Giriş Yap',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+                
+                const SizedBox(height: 30),
+                
+                // Kayıt ol linki
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Hesabınız yok mu? ',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FirebaseKayitEkrani(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Kayıt Ol',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 } 

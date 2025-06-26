@@ -3,8 +3,10 @@ import '../hizmetler/firebase_auth_servisi.dart';
 import '../widgets/yukleme_gostergesi.dart';
 
 class SifreSifirlamaEkrani extends StatefulWidget {
+  const SifreSifirlamaEkrani({super.key});
+
   @override
-  _SifreSifirlamaEkraniState createState() => _SifreSifirlamaEkraniState();
+  State<SifreSifirlamaEkrani> createState() => _SifreSifirlamaEkraniState();
 }
 
 class _SifreSifirlamaEkraniState extends State<SifreSifirlamaEkrani>

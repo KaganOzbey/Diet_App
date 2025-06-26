@@ -95,6 +95,23 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
   Future<void> _loadUserData() async {
     try {
       print('ModernDashboard: Kullanıcı verileri yükleniyor...');
+      
+      // Firebase Auth aktifse önce Firebase kullanıcısını kontrol et
+      final firebaseUser = FirebaseAuthServisi.mevcutKullanici;
+      if (firebaseUser != null) {
+        // Firebase kullanıcısı var, email'e göre profil verilerini bul
+        final kullanici = await VeriTabaniServisi.kullaniciIdileBul(firebaseUser.email!);
+        if (kullanici != null) {
+          print('ModernDashboard: Firebase kullanıcı profili bulundu: ${kullanici.email}');
+          setState(() {
+            currentUser = kullanici;
+          });
+          _loadTodayData();
+          return;
+        }
+      }
+      
+      // Demo kullanıcısını kontrol et (demo mode aktifse)
       final demoKullanici = FirebaseAuthServisi.demomMevcutKullanici;
       if (demoKullanici != null) {
         print('ModernDashboard: Demo kullanıcı bulundu - Kilo: ${demoKullanici.kilo}');
@@ -105,6 +122,7 @@ class _ModernDashboardState extends State<ModernDashboard> with TickerProviderSt
         return;
       }
       
+      // Son çare olarak aktif kullanıcıyı veritabanından yükle
       final kullanici = await VeriTabaniServisi.aktifKullaniciGetir();
       if (kullanici != null) {
         print('ModernDashboard: Veritabanından kullanıcı bulundu - Kilo: ${kullanici.kilo}');

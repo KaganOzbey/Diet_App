@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../hizmetler/firebase_auth_servisi.dart';
-import '../hizmetler/veri_tabani_servisi.dart';
-import '../widgets/yukleme_gostergesi.dart';
+import 'bilgi_giris_ekrani.dart';
 import 'firebase_giris_ekrani.dart';
-import 'modern_dashboard.dart';
 
 class FirebaseKayitEkrani extends StatefulWidget {
+  const FirebaseKayitEkrani({super.key});
+
   @override
-  _FirebaseKayitEkraniState createState() => _FirebaseKayitEkraniState();
+  State<FirebaseKayitEkrani> createState() => _FirebaseKayitEkraniState();
 }
 
 class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
@@ -31,8 +32,8 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
   late Animation<double> _fadeAnimation;
   
   bool _yukleniyor = false;
-  bool _sifreGosteriliyor = false;
-  bool _sifreTekrarGosteriliyor = false;
+  bool _sifreGizli = true;
+  bool _sifreTekrarGizli = true;
   bool _erkekMi = true;
   int _aktiviteSeviyesi = 2;
   int _mevcutSayfa = 0;
@@ -74,109 +75,63 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
   }
 
   Future<void> _kayitOl() async {
-    print('_kayitOl çağrıldı');
-    
-    // İlk sayfa bilgilerini manuel kontrol et (form dispose edildiği için)
-    print('İlk sayfa bilgileri kontrol ediliyor...');
-    if (_emailController.text.isEmpty || !FirebaseAuthServisi.emailGecerliMi(_emailController.text)) {
-      print('Email validation başarısız');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Geçerli bir email adresi gerekli')),
-      );
-      return;
-    }
-    
-    if (_sifreController.text.length < 6) {
-      print('Şifre validation başarısız');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Şifre en az 6 karakter olmalı')),
-      );
-      return;
-    }
-    
-    if (_sifreController.text != _sifreTekrarController.text) {
-      print('Şifre tekrar validation başarısız');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Şifreler eşleşmiyor')),
-      );
-      return;
-    }
-    
-    print('İlk sayfa validation başarılı');
-    
-    // Kişisel form validation
-    print('Kişisel form validation yapılıyor...');
-    if (!_kisiselFormKey.currentState!.validate()) {
-      print('Kişisel form validation başarısız');
-      return;
-    }
-    print('Kişisel form validation başarılı');
-    
-    print('Tüm validasyonlar geçti! Firebase kayıt başlatılıyor...');
-    print('Email: ${_emailController.text}');
-    print('İsim: ${_isimController.text}');
-    print('Boy: ${_boyController.text}');
-    print('Kilo: ${_kiloController.text}');
-    print('Yaş: ${_yasController.text}');
-    print('Cinsiyet: ${_erkekMi ? "Erkek" : "Kadın"}');
-    print('Aktivite: $_aktiviteSeviyesi');
-    
-    setState(() => _yukleniyor = true);
+    if (!_formKey.currentState!.validate()) return;
 
-    final basarili = await FirebaseAuthServisi.emailIleKayitOl(
-      context: context,
-      email: _emailController.text.trim(),
-      sifre: _sifreController.text,
-      isim: _isimController.text.trim(),
-      boy: double.parse(_boyController.text),
-      kilo: double.parse(_kiloController.text),
-      yas: int.parse(_yasController.text),
-      erkekMi: _erkekMi,
-      aktiviteSeviyesi: _aktiviteSeviyesi,
-    );
+    setState(() {
+      _yukleniyor = true;
+    });
 
-    setState(() => _yukleniyor = false);
+    try {
+      // Firebase Auth ile kayıt ol
+      User? kullanici = await FirebaseAuthServisi.emailIleKayitOl(
+        email: _emailController.text.trim(),
+        sifre: _sifreController.text,
+      );
 
-    if (basarili && mounted) {
-      _basariliKayitDialogGoster();
+      if (kullanici != null) {
+        // Email doğrulama gönder
+        await FirebaseAuthServisi.emailDogrulamaGonder();
+        
+        if (mounted) {
+          // Başarılı mesaj göster
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Kayıt başarılı! Email doğrulama linki gönderildi.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+
+          // Bilgi giriş ekranına yönlendir
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const BilgiGirisEkrani(),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Kayıt hatası: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _yukleniyor = false;
+        });
+      }
     }
   }
 
   void _basariliKayitDialogGoster() {
-    // Demo mode'da direkt uygulamaya gir
-    if (FirebaseAuthServisi.demoMode) {
-      // Başarılı kayıt mesajı göster ve direkt dashboard'a git
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Kayıt başarılı! Uygulamaya yönlendiriliyorsunuz...'),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      
-      // 1 saniye bekle sonra dashboard'a git
-      Future.delayed(Duration(seconds: 1), () async {
-        final kullanici = await VeriTabaniServisi.aktifKullaniciGetir();
-        if (kullanici != null && mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ModernDashboard(bmr: kullanici.gunlukKaloriHedefi),
-            ),
-            (route) => false,
-          );
-        }
-      });
-      return;
-    }
-    
-    // Normal Firebase mode için dialog göster
+    // Kayıt başarılı dialog'u göster
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -215,7 +170,7 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
       print('Sayfa 0 - İlk sayfa doğrulaması yapılıyor');
       // İlk sayfa doğrulaması
       if (_emailController.text.isEmpty || 
-          !FirebaseAuthServisi.emailGecerliMi(_emailController.text)) {
+          !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(_emailController.text)) {
         print('Email validation başarısız: ${_emailController.text}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Geçerli bir email adresi girin')),
@@ -268,60 +223,222 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.green[300]!,
-              Colors.green[500]!,
-              Colors.green[700]!,
-            ],
-          ),
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black54),
+          onPressed: () => Navigator.pop(context),
         ),
-        child: SafeArea(
-          child: _yukleniyor
-              ? Center(
-                  child: YuklemeHelper.kartYukleme(
-                    mesaj: 'Hesap oluşturuluyor...',
-                    renk: Colors.white,
-                  ),
-                )
-              : _buildKayitFormu(),
+        title: const Text(
+          'Hesap Oluştur',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildKayitFormu() {
-    return Column(
-      children: [
-        // Başlık
-        _buildBaslik(),
-        
-        // İlerleme göstergesi
-        _buildIlerlemeGostergesi(),
-        
-        // Sayfa içeriği
-        Expanded(
-          child: PageView(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _mevcutSayfa = index;
-              });
-            },
-            children: [
-              _buildHesapBilgileriSayfasi(),
-              _buildKisiselBilgilerSayfasi(),
-            ],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 40),
+                
+                // Başlık
+                const Text(
+                  '🌟 Hoş Geldiniz!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                const Text(
+                  'Sağlıklı yaşam yolculuğunuza başlayın',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54,
+                  ),
+                ),
+                
+                const SizedBox(height: 50),
+                
+                // Email alanı
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email Adresi',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.blue, width: 2),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Email adresi gerekli';
+                    }
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                      return 'Geçerli bir email adresi girin';
+                    }
+                    return null;
+                  },
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Şifre alanı
+                TextFormField(
+                  controller: _sifreController,
+                  obscureText: _sifreGizli,
+                  decoration: InputDecoration(
+                    labelText: 'Şifre',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(_sifreGizli ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () {
+                        setState(() {
+                          _sifreGizli = !_sifreGizli;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.blue, width: 2),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Şifre gerekli';
+                    }
+                    if (value.length < 6) {
+                      return 'Şifre en az 6 karakter olmalı';
+                    }
+                    return null;
+                  },
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Şifre tekrar alanı
+                TextFormField(
+                  controller: _sifreTekrarController,
+                  obscureText: _sifreTekrarGizli,
+                  decoration: InputDecoration(
+                    labelText: 'Şifre Tekrar',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(_sifreTekrarGizli ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () {
+                        setState(() {
+                          _sifreTekrarGizli = !_sifreTekrarGizli;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.blue, width: 2),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Şifre tekrarı gerekli';
+                    }
+                    if (value != _sifreController.text) {
+                      return 'Şifreler eşleşmiyor';
+                    }
+                    return null;
+                  },
+                ),
+                
+                const SizedBox(height: 40),
+                
+                // Kayıt ol butonu
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _yukleniyor ? null : _kayitOl,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: _yukleniyor
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Hesap Oluştur',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+                
+                const SizedBox(height: 30),
+                
+                // Giriş yap linki
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Zaten hesabınız var mı? ',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FirebaseGirisEkrani(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Giriş Yap',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-        
-        // Navigasyon butonları
-        _buildNavigasyonButonlari(),
-      ],
+      ),
     );
   }
 
@@ -335,7 +452,7 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: Colors.black87,
             ),
           ),
           SizedBox(height: 8),
@@ -343,7 +460,7 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
             'Beslenme takibinize başlayın',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.white70,
+              color: Colors.black54,
             ),
           ),
         ],
@@ -360,7 +477,7 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
           Expanded(
             child: Container(
               height: 2,
-              color: _mevcutSayfa >= 1 ? Colors.white : Colors.white30,
+              color: _mevcutSayfa >= 1 ? Colors.blue : Colors.grey,
             ),
           ),
           _buildIlerlemeBubble(1, 'Bilgiler'),
@@ -378,16 +495,16 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: aktif ? Colors.white : Colors.white30,
+            color: aktif ? Colors.blue : Colors.grey,
             shape: BoxShape.circle,
           ),
           child: Center(
             child: aktif
-                ? Icon(Icons.check, color: Colors.green)
+                ? Icon(Icons.check, color: Colors.white)
                 : Text(
                     '${index + 1}',
                     style: TextStyle(
-                      color: Colors.green,
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -397,7 +514,7 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
         Text(
           label,
           style: TextStyle(
-            color: aktif ? Colors.white : Colors.white30,
+            color: aktif ? Colors.black87 : Colors.grey,
             fontSize: 12,
           ),
         ),
@@ -427,7 +544,7 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.green[700],
+                      color: Colors.black87,
                     ),
                   ),
                   
@@ -444,15 +561,15 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Email adresi gerekli';
-                      }
-                      if (!FirebaseAuthServisi.emailGecerliMi(value)) {
-                        return 'Geçerli bir email adresi girin';
-                      }
-                      return null;
-                    },
+                                      validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Email adresi gerekli';
+                    }
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                      return 'Geçerli bir email adresi girin';
+                    }
+                    return null;
+                  },
                   ),
                   
                   SizedBox(height: 16),
@@ -460,20 +577,23 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
                   // Şifre
                   TextFormField(
                     controller: _sifreController,
-                    obscureText: !_sifreGosteriliyor,
+                    obscureText: _sifreGizli,
                     onChanged: (value) {
                       setState(() {
-                        _sifreGucu = FirebaseAuthServisi.sifreGucluluguKontrol(value);
+                        // Şifre gücü kontrolü basitleştirildi
+                        _sifreGucu = {
+                          'seviye': value.length >= 8 ? 'Güçlü' : value.length >= 6 ? 'Orta' : 'Zayıf'
+                        };
                       });
                     },
                     decoration: InputDecoration(
                       labelText: 'Şifre',
-                      prefixIcon: Icon(Icons.lock_outline),
+                      prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
-                        icon: Icon(_sifreGosteriliyor ? Icons.visibility_off : Icons.visibility),
+                        icon: Icon(_sifreGizli ? Icons.visibility_off : Icons.visibility),
                         onPressed: () {
                           setState(() {
-                            _sifreGosteriliyor = !_sifreGosteriliyor;
+                            _sifreGizli = !_sifreGizli;
                           });
                         },
                       ),
@@ -500,15 +620,15 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
                   // Şifre tekrar
                   TextFormField(
                     controller: _sifreTekrarController,
-                    obscureText: !_sifreTekrarGosteriliyor,
+                    obscureText: _sifreTekrarGizli,
                     decoration: InputDecoration(
                       labelText: 'Şifre Tekrar',
-                      prefixIcon: Icon(Icons.lock_outline),
+                      prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
-                        icon: Icon(_sifreTekrarGosteriliyor ? Icons.visibility_off : Icons.visibility),
+                        icon: Icon(_sifreTekrarGizli ? Icons.visibility_off : Icons.visibility),
                         onPressed: () {
                           setState(() {
-                            _sifreTekrarGosteriliyor = !_sifreTekrarGosteriliyor;
+                            _sifreTekrarGizli = !_sifreTekrarGizli;
                           });
                         },
                       ),
@@ -601,7 +721,7 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.green[700],
+                  color: Colors.black87,
                 ),
               ),
               
@@ -802,7 +922,7 @@ class _FirebaseKayitEkraniState extends State<FirebaseKayitEkrani>
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: Colors.green[600],
+                foregroundColor: Colors.blue,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
